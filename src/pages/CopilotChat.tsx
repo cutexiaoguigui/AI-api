@@ -1,77 +1,30 @@
-import React, { useState, useRef, useEffect, memo, MouseEvent, Component, ErrorInfo, ReactNode } from 'react';
-import { Button, Input, Tooltip, message, ConfigProvider } from 'antd'; // 引入 ConfigProvider (虽然此处未使用，但建议在App根组件使用<App>)
+import React, { useState, useRef, useEffect } from 'react';
+import { Button, Input, Tooltip, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import styled, { keyframes, StyleSheetManager } from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, CopyOutlined, CheckOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
-import { useChat } from '../contexts/ChatContext'; // 确保 ChatContext 正确提供 settings
+import { useChat } from '../contexts/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import remarkGfm from 'remark-gfm';
-import logoImage from '../logo.png'; // 确保路径正确
+import logoImage from '../logo.png';
 
-// --- 按需加载语言支持 ---
+// 按需加载语言支持
 import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
 import typescript from 'react-syntax-highlighter/dist/cjs/languages/prism/typescript';
 import jsx from 'react-syntax-highlighter/dist/cjs/languages/prism/jsx';
 import css from 'react-syntax-highlighter/dist/cjs/languages/prism/css';
 import json from 'react-syntax-highlighter/dist/cjs/languages/prism/json';
 
-// --- 注册语言 ---
+// 注册语言
 SyntaxHighlighter.registerLanguage('javascript', javascript);
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('jsx', jsx);
 SyntaxHighlighter.registerLanguage('css', css);
 SyntaxHighlighter.registerLanguage('json', json);
 
-// --- 类型定义 ---
-interface ChatMessage {
-  user: string;
-  text: string;
-  id: string;
-}
-
-interface ChatHistory {
-  id: string;
-  title: string;
-  lastMessage: string;
-  date: string;
-  messages: ChatMessage[]; // 确保 messages 存在于历史记录中
-}
-
-// --- ErrorBoundary 组件定义 ---
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    console.error("ErrorBoundary getDerivedStateFromError:", error);
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <div>抱歉，内容渲染出错。</div>; // 备用 UI
-    }
-    return <>{this.props.children}</>;
-  }
-}
-
-// --- 样式定义 (使用 Transient Props '$') ---
+// 样式定义
 const Container = styled.div`
   display: flex;
   height: 100vh;
@@ -106,6 +59,7 @@ const LogoContainer = styled.div`
 const LogoImg = styled.img`
   height: 28px;
   margin-right: 8px;
+  
   &.large-logo {
     height: 80px;
     margin-bottom: 24px;
@@ -120,23 +74,25 @@ const NewChatButton = styled(Button)`
   background: none;
   cursor: pointer;
   color: #1890ff;
+  
   &:hover {
     color: #40a9ff;
     background: none;
   }
+  
   span {
     margin-left: 4px;
   }
 `;
 
-const ChatHistoryListWrapper = styled.div`
+const ChatHistoryList = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 12px;
   background: linear-gradient(to bottom,rgb(254, 254, 254) 30%,rgb(189, 211, 244) 100%);
 `;
 
-const ChatHistoryItemWrapper = styled.div<{ $active: boolean }>`
+const ChatHistoryItem = styled.div<{ active: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -144,12 +100,13 @@ const ChatHistoryItemWrapper = styled.div<{ $active: boolean }>`
   border-radius: 16px;
   margin-bottom: 10px;
   cursor: pointer;
-  background-color: ${props => props.$active ? '#e6f7ff' : '#f9f9f9'};
-  box-shadow: ${props => props.$active ? '0 2px 6px rgba(24, 144, 255, 0.15)' : 'none'};
+  background-color: ${props => props.active ? '#e6f7ff' : '#f9f9f9'};
+  box-shadow: ${props => props.active ? '0 2px 6px rgba(24, 144, 255, 0.15)' : 'none'};
   transition: all 0.2s ease;
-  border: 1px solid ${props => props.$active ? '#91d5ff' : 'transparent'};
+  border: 1px solid ${props => props.active ? '#91d5ff' : 'transparent'};
+  
   &:hover {
-    background-color: ${props => props.$active ? '#e6f7ff' : '#f0f0f0'};
+    background-color: ${props => props.active ? '#e6f7ff' : '#f0f0f0'};
     transform: translateY(-1px);
   }
 `;
@@ -194,24 +151,26 @@ const DeleteButton = styled(Button)`
   width: 24px;
   font-size: 12px;
   color: #999;
-  ${ChatHistoryItemWrapper}:hover & {
+  
+  ${ChatHistoryItem}:hover & {
     visibility: visible;
     opacity: 1;
   }
+  
   &:hover {
     color: #ff4d4f;
     background: rgba(255, 77, 79, 0.1);
   }
 `;
 
-const MainContent = styled.div<{ $showGradient: boolean }>`
+const MainContent = styled.div<{ showGradient: boolean }>`
   flex: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
   background-color: #ffffff;
-  background-image: ${props => props.$showGradient ?
-    'radial-gradient(circle at center, rgba(112, 186, 255, 0.25) 0%, rgb(255, 255, 255) 20vw)' :
+  background-image: ${props => props.showGradient ? 
+    'radial-gradient(circle at center, rgba(112, 186, 255, 0.25) 0%, rgb(255, 255, 255) 20vw)' : 
     'none'};
   position: relative;
 `;
@@ -246,6 +205,7 @@ const SettingsIconButton = styled(Button)`
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  
   &:hover {
     color: #1890ff;
     background-color: rgba(24, 144, 255, 0.1);
@@ -280,21 +240,42 @@ const WelcomeText = styled.p`
 `;
 
 const slideUp = keyframes`
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 `;
 
 const slideCenterToBottom = keyframes`
-  from { transform: translateY(0); position: relative; width: 500px; max-width: 90%; }
-  to { transform: translateY(calc(100vh - 300px)); position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 800px; max-width: 95%; z-index: 1000; }
+  from {
+    transform: translateY(0);
+    position: relative;
+    width: 500px;
+    max-width: 90%;
+  }
+  to {
+    transform: translateY(calc(100vh - 300px));
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    width: 800px;
+    max-width: 95%;
+    z-index: 1000;
+  }
 `;
 
-const InitialInputContainer = styled.div<{ $isMovingToBottom?: boolean }>`
+const InitialInputContainer = styled.div<{ isMovingToBottom?: boolean }>`
   width: 500px;
   max-width: 90%;
   position: relative;
   margin-top: 20px;
-  animation: ${props => props.$isMovingToBottom ? slideCenterToBottom : slideUp} 0.5s ease-out forwards;
+  animation: ${props => props.isMovingToBottom ? slideCenterToBottom : slideUp} 0.5s ease-out forwards;
   transition: width 0.5s ease-out;
 `;
 
@@ -321,9 +302,16 @@ const InputContainer = styled.div`
 
 const SlideUpInputContainer = styled(InputContainer)`
   animation: slideIn 0.5s ease-out;
+  
   @keyframes slideIn {
-    from { transform: translateY(50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+      transform: translateY(50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 `;
 
@@ -343,7 +331,10 @@ const InputButton = styled.button`
   margin-right: 12px;
   cursor: pointer;
   padding: 4px;
-  &:hover { color: #1890ff; }
+
+  &:hover {
+    color: #1890ff;
+  }
 `;
 
 const SendButton = styled(Button)`
@@ -376,7 +367,12 @@ const CopyButton = styled.button`
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  &:hover { background: white; border-color: #1890ff; color: #1890ff; }
+  
+  &:hover {
+    background: white;
+    border-color: #1890ff;
+    color: #1890ff;
+  }
 `;
 
 const ToggleButton = styled.button`
@@ -393,7 +389,11 @@ const ToggleButton = styled.button`
   margin-bottom: 5px;
   transition: all 0.2s;
   width: 100%;
-  &:hover { background: rgba(220, 220, 220, 0.9); border-color: #aaa; }
+  
+  &:hover {
+    background: rgba(220, 220, 220, 0.9);
+    border-color: #aaa;
+  }
 `;
 
 const LanguageLabel = styled.span`
@@ -417,6 +417,7 @@ const StyledInput = styled(Input.TextArea)`
   font-size: 16px;
   resize: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
   &:hover, &:focus {
     border-color: #1890ff;
     box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
@@ -431,248 +432,320 @@ const MessagesList = styled.div`
   margin: 0 auto;
 `;
 
-const MessageItem = styled.div<{ $isUser: boolean; $isError?: boolean }>`
+const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   max-width: 80%;
   padding: 14px 18px;
   border-radius: 18px;
   margin-bottom: 16px;
-  background-color: ${props => props.$isError ? '#fff2f0' : props.$isUser ? '#e6f7ff' : '#ffffff'};
-  color: ${props => props.$isError ? '#f5222d' : '#333'};
-  align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+  background-color: ${props => props.isError ? '#fff2f0' : props.isUser ? '#e6f7ff' : '#ffffff'};
+  color: ${props => props.isError ? '#f5222d' : '#333'};
+  align-self: ${props => props.isUser ? 'flex-end' : 'flex-start'};
   border: 1px solid ${props => {
-    if (props.$isError) return '#ffccc7';
-    return props.$isUser ? '#91d5ff' : '#e8e8e8';
+    if (props.isError) return '#ffccc7';
+    return props.isUser ? '#91d5ff' : '#e8e8e8';
   }};
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   line-height: 1.5;
-  pre { max-width: 100%; overflow-x: auto; margin: 10px 0; border-radius: 8px; }
-  code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; padding: 2px 4px; border-radius: 4px; background-color: ${props => props.$isError ? 'rgba(255, 77, 79, 0.1)' : props.$isUser ? 'rgba(24, 144, 255, 0.1)' : '#f5f5f5'}; font-size: 0.9em; }
-  p { margin: 0 0 10px; &:last-child { margin-bottom: 0; } }
-  ul, ol { margin: 8px 0; padding-left: 24px; }
-  li { margin-bottom: 4px; }
+
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 10px 0;
+    border-radius: 8px;
+  }
+
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background-color: ${props => props.isError ? 'rgba(255, 77, 79, 0.1)' : props.isUser ? 'rgba(24, 144, 255, 0.1)' : '#f5f5f5'};
+    font-size: 0.9em;
+  }
+
+  p {
+    margin: 0 0 10px;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul, ol {
+    margin: 8px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
 `;
 
 const MarkdownTable = styled.table`
-  border-collapse: collapse; margin: 10px 0; font-size: 0.9em; width: 100%; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #eee;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 0.9em;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #eee;
 `;
 
 const TableHeader = styled.th`
-  background-color: rgba(24, 144, 255, 0.1); color: #333; font-weight: bold; padding: 8px 12px; text-align: left; border: 1px solid #eee;
+  background-color: rgba(24, 144, 255, 0.1);
+  color: #333;
+  font-weight: bold;
+  padding: 8px 12px;
+  text-align: left;
+  border: 1px solid #eee;
 `;
 
 const TableCell = styled.td`
-  padding: 8px 12px; border: 1px solid #eee; text-align: left;
+  padding: 8px 12px;
+  border: 1px solid #eee;
+  text-align: left;
 `;
+
+// 新增的样式
+const ScrollButtonsContainer = styled.div`
+  position: absolute;
+  bottom: 90px;  // 调整位置，使其在输入框上方
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+`;
+
+const ScrollButton = styled(Button)`
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(5px);
+  color: #666;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  &:hover {
+    color: #1890ff;
+    background: rgba(255, 255, 255, 0.9);
+  }
+`;
+
+interface ChatMessage {
+  user: string;
+  text: string;
+  id: string;
+}
+
+interface ChatHistory {
+  id: string;
+  title: string;
+  lastMessage: string;
+  date: string;
+  messages: ChatMessage[];
+}
 
 const STORAGE_KEY = 'copilot_chat_histories';
 
-// --- ChatHistoryItem 组件定义 ---
-interface ChatHistoryItemProps {
-  chat: ChatHistory;
-  active: boolean;
-  onClick: (id: string) => void;
-  handleDeleteHistory: (e: MouseEvent<HTMLButtonElement>, id: string) => void;
-}
-
-const ChatHistoryItem: React.FC<ChatHistoryItemProps> = ({ chat, active, onClick, handleDeleteHistory }) => {
-  return (
-    <ChatHistoryItemWrapper $active={active} onClick={() => onClick(chat.id)}>
-      <ChatHistoryContent>
-        <ChatHistoryTitle>{chat.title}</ChatHistoryTitle>
-        <ChatHistoryPreview>{chat.lastMessage}</ChatHistoryPreview>
-      </ChatHistoryContent>
-      <ChatHistoryDate>{chat.date}</ChatHistoryDate>
-      <DeleteButton 
-        type="text"
-        icon={<DeleteOutlined />}
-        onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDeleteHistory(e, chat.id)} // 明确指定事件类型
-        title="删除聊天"
-      />
-    </ChatHistoryItemWrapper>
-  );
-};
-
-// --- CodeBlock 组件定义 (使用 React.memo 优化) ---
-const CodeBlock = memo((props: any) => {
-  const { className, children, inline } = props;
-  const match = /language-(\w+)/.exec(className || '');
-  const language = match ? match[1] : '';
-  const codeString = String(children).replace(/\n$/, '');
-  const codeId = `code-${Math.random().toString(36).substring(2, 9)}`;
-
-  // 复制代码状态 (需要从父组件传递或使用 Context)
-  // 这里暂时移除 copySuccess 状态，因为它需要更复杂的处理
-  // const [copySuccess, setCopySuccess] = useState<{[key: string]: boolean}>({});
-  // const handleCopyCode = (code: string, id: string) => { ... };
-
-  // 代码折叠功能
-  const [isExpanded, setIsExpanded] = useState(false);
-  const codeLines = codeString.split('\n');
-  const isLongCode = codeLines.length > 5;
-
-  const displayedCode = isLongCode && !isExpanded
-    ? codeLines.slice(0, 5).join('\n')
-    : codeString;
-
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
-  };
-
-  // 复制代码到剪贴板 (简化，直接在按钮上处理)
-  const handleCopyClick = () => {
-    navigator.clipboard.writeText(codeString).then(() => {
-      message.success('代码已复制');
-    }).catch(err => {
-      console.error('复制失败:', err);
-      message.error('复制失败');
-    });
-  };
-
-  return !inline && language ? (
-    <CodeBlockWrapper>
-      {language && <LanguageLabel>{language}</LanguageLabel>}
-      <CopyButton
-        onClick={handleCopyClick} // 直接调用复制逻辑
-        title="复制代码"
-      >
-        <CopyOutlined /> {/* 简化：移除复制成功状态显示 */}
-      </CopyButton>
-      <SyntaxHighlighter
-        style={oneLight as any}
-        language={language}
-        PreTag="div"
-      >
-        {displayedCode}
-      </SyntaxHighlighter>
-
-      {isLongCode && (
-        <ToggleButton onClick={toggleExpand}>
-          {isExpanded ? (
-            <>
-              <UpOutlined style={{ marginRight: 8 }} /> 收起代码
-            </>
-          ) : (
-            <>
-              <DownOutlined style={{ marginRight: 8 }} /> 展开代码 ({codeLines.length - 5} 行未显示)
-            </>
-          )}
-        </ToggleButton>
-      )}
-    </CodeBlockWrapper>
-  ) : (
-    <code className={className}>
-      {children}
-    </code>
-  );
-});
-
-CodeBlock.displayName = 'CodeBlock'; // 方便调试
-
-// --- CopilotChat 主组件 ---
 const CopilotChat: React.FC = () => {
   const { settings } = useChat();
   const [inputText, setInputText] = useState('');
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string>(''); // 明确类型
+  const [currentChatId, setCurrentChatId] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  // const [copySuccess, setCopySuccess] = useState<{[key: string]: boolean}>({}); // 移到 CodeBlock 内部或 Context
+  const [copySuccess, setCopySuccess] = useState<{[key: string]: boolean}>({});
   const [isMovingToBottom, setIsMovingToBottom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isChatStarted, setIsChatStarted] = useState<boolean>(false);
-
+  
   const navigate = useNavigate();
   const messageEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
+  const messagesListRef = useRef<HTMLDivElement>(null);
 
-  // --- 函数定义 ---
+  // 创建新聊天的函数声明提前，以便在useEffect中使用
   const createNewChat = () => {
     const newChatId = Date.now().toString();
-    const newChat: ChatHistory = { // 明确类型
-      id: newChatId,
-      title: '新对话',
-      lastMessage: '美好的一天！',
+    const newChat = {
+      id: newChatId, 
+      title: '新对话', 
+      lastMessage: '美好的一天！', 
       date: '刚刚',
-      messages: [] // 初始化 messages 数组
+      messages: []
     };
 
+    // 添加到历史记录并更新状态
     const updatedHistories = [newChat, ...chatHistories];
     setChatHistories(updatedHistories);
+    
+    // 更新本地存储
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistories));
+    
+    // 切换到新聊天
     setCurrentChatId(newChatId);
     setMessages([]);
     setIsChatStarted(false);
-    setInputText('');
+    setInputText(''); // 清空输入框
   };
 
-  const selectChat = (id: string) => {
-    if (id !== currentChatId) {
-      setCurrentChatId(id);
-      const selectedChat = chatHistories.find(chat => chat.id === id);
-      if (selectedChat) {
-        setMessages(selectedChat.messages || []); // 加载消息，处理 messages 可能不存在的情况
-        setIsChatStarted(!!(selectedChat.messages && selectedChat.messages.length > 0)); // 根据是否有消息设置状态
-      } else {
-        // 如果找不到对应的聊天记录（理论上不应该发生），可以创建一个新的
-        console.warn(`未找到 ID 为 ${id} 的聊天记录，将创建新对话。`);
-        createNewChat();
-      }
-    }
-  };
-
-  const handleDeleteHistory = (e: MouseEvent<HTMLButtonElement>, id: string) => {
-    e.stopPropagation();
-    const updatedHistories = chatHistories.filter(chat => chat.id !== id);
-    setChatHistories(updatedHistories);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistories));
-    message.success('聊天记录已删除');
-
-    if (id === currentChatId) {
-      if (updatedHistories.length > 0) {
-        const firstChat = updatedHistories[0];
-        selectChat(firstChat.id); // 使用 selectChat 来切换
-      } else {
-        createNewChat();
-      }
-    }
-  };
-
-  const updateChatHistory = (chatId: string, userMessage: string, aiResponse: string, updatedMessages: ChatMessage[]) => {
-    const updatedHistories = chatHistories.map(chat =>
-      chat.id === chatId
-        ? {
-            ...chat,
-            lastMessage: userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''), // 更新最后消息预览
-            date: '刚刚',
-            messages: updatedMessages
+  // 初始化加载历史记录或创建新聊天
+  useEffect(() => {
+    const savedHistories = localStorage.getItem(STORAGE_KEY);
+    
+    if (savedHistories) {
+      try {
+        const parsed = JSON.parse(savedHistories);
+        setChatHistories(parsed);
+        
+        // 加载最近的聊天
+        if (parsed.length > 0) {
+          const lastChat = parsed[0];
+          setCurrentChatId(lastChat.id);
+          
+          if (lastChat.messages && lastChat.messages.length > 0) {
+            setMessages(lastChat.messages);
+            setIsChatStarted(true);
+          } else {
+            setMessages([]);
+            setIsChatStarted(false);
           }
+        } else {
+          createNewChat();
+        }
+      } catch (e) {
+        console.error('解析历史记录失败:', e);
+        createNewChat();
+      }
+    } else {
+      createNewChat();
+    }
+  }, []);
+
+  // 保存历史记录到本地存储
+  useEffect(() => {
+    if (chatHistories.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(chatHistories));
+    }
+  }, [chatHistories]);
+
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    // 当切换聊天时，加载对应的消息
+    const currentChat = chatHistories.find(chat => chat.id === currentChatId);
+    if (currentChat) {
+      setMessages(currentChat.messages);
+    }
+  }, [currentChatId, chatHistories]);
+
+  // 消息变化时滚动到底部
+  useEffect(() => {
+    if (messages.length > 0 && isChatStarted) {
+      setTimeout(() => {
+        if (chatAreaRef.current) {
+          chatAreaRef.current.scrollTo({
+            top: chatAreaRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 75); // 增加延迟以确保DOM更新完成
+    }
+  }, [messages, isChatStarted]);
+
+  // 流式响应时的智能滚动
+  useEffect(() => {
+    if (!isStreaming) return;
+    
+    // 初始滚动到底部
+    if (chatAreaRef.current) {
+      chatAreaRef.current.scrollTo({
+        top: chatAreaRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+    
+    const scrollInterval = setInterval(() => {
+      if (chatAreaRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = chatAreaRef.current;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        
+        // 如果用户距离底部不远，自动滚动
+        if (distanceFromBottom < 150) {
+          chatAreaRef.current.scrollTo({
+            top: scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }, 75);
+    
+    return () => clearInterval(scrollInterval);
+  }, [isStreaming]);
+
+  // 监听streamingResponse变化，确保滚动
+  useEffect(() => {
+    if (streamingResponse && chatAreaRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatAreaRef.current;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // 如果用户距离底部不远，自动滚动
+      if (distanceFromBottom < 150) {
+        setTimeout(() => {
+          if (chatAreaRef.current) {
+            chatAreaRef.current.scrollTo({
+              top: chatAreaRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 10);
+      }
+    }
+  }, [streamingResponse]);
+
+  const saveChatHistory = (chatId: string, updatedMessages: ChatMessage[]) => {
+    // 更新聊天历史记录
+    const updatedHistories = chatHistories.map(chat => 
+      chat.id === chatId 
+        ? {...chat, messages: updatedMessages} 
         : chat
     );
+    
     setChatHistories(updatedHistories);
+    
+    // 更新本地存储
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistories));
   };
 
-  const sendMessageToAPI = async (userMessage: string): Promise<string> => { // 明确返回类型
+  const sendMessageToAPI = async (userMessage: string) => {
     if (!settings.apiKey) {
       message.error('请先在设置中配置API密钥');
       return '错误：请先在设置中配置API密钥';
     }
 
-    setLoading(true);
-    setIsStreaming(true);
-    setStreamingResponse('');
-
-    const apiMessages = [
-      { role: 'system', content: settings.systemPrompt },
-      ...messages.map(msg => ({
-        role: msg.user === 'Copilot' ? 'assistant' : 'user',
-        content: msg.text
-      })),
-      { role: 'user', content: userMessage }
-    ];
-
     try {
+      setLoading(true);
+      setIsStreaming(true);
+      setStreamingResponse('');
+
+      // 保存消息数组用于API调用
+      const apiMessages = [
+        { role: 'system', content: settings.systemPrompt },
+        ...messages.map(msg => ({
+          role: msg.user === 'Copilot' ? 'assistant' : 'user',
+          content: msg.text
+        })),
+        { role: 'user', content: userMessage }
+      ];
+
+      // 创建流式响应
       const response = await fetch(`${settings.apiEndpoint}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -687,108 +760,223 @@ const CopilotChat: React.FC = () => {
         }),
       });
 
-      if (!response.ok || !response.body) { // 检查 response.body 是否存在
-        let errorDetail = `API响应错误 (${response.status} ${response.statusText})`;
+      if (!response.ok) {
+        let errorDetail = '';
         try {
           const errorData = await response.json();
-          errorDetail += `: ${errorData.error?.message || errorData.message || JSON.stringify(errorData)}`;
+          errorDetail = errorData.error?.message || errorData.message || JSON.stringify(errorData);
         } catch (e) {
-          errorDetail += `: ${await response.text()}`;
+          // 如果不是JSON格式，尝试获取文本
+          errorDetail = await response.text();
         }
-        throw new Error(errorDetail);
+        throw new Error(`API响应错误 (${response.status} ${response.statusText}): ${errorDetail}`);
       }
 
-      const reader = response.body.getReader();
+      const reader = response.body?.getReader();
       const decoder = new TextDecoder('utf-8');
       let responseText = '';
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
+      if (reader) {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-            try {
-              const jsonData = JSON.parse(line.substring(6));
-              if (jsonData.choices && jsonData.choices[0].delta && jsonData.choices[0].delta.content) {
-                const content = jsonData.choices[0].delta.content;
-                responseText += content;
-                setStreamingResponse(prev => prev + content); // 使用函数式更新保证获取最新状态
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const jsonData = JSON.parse(line.substring(6));
+                if (jsonData.choices && jsonData.choices[0].delta && jsonData.choices[0].delta.content) {
+                  const content = jsonData.choices[0].delta.content;
+                  responseText += content;
+                  setStreamingResponse(responseText);
+                }
+              } catch (e) {
+                console.error('解析流式数据错误:', e);
               }
-            } catch (e) {
-              console.error('解析流式数据错误:', line, e);
             }
           }
         }
       }
-      return responseText || '对不起，我无法理解您的问题。';
 
+      setIsStreaming(false);
+      return responseText || '对不起，我无法理解您的问题。';
     } catch (error) {
       console.error('API调用失败:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      message.error(`API调用失败: ${errorMessage}`);
+      message.error('API调用失败');
+      setIsStreaming(false);
       return `❌ API调用错误: ${errorMessage}`;
     } finally {
-      setIsStreaming(false);
       setLoading(false);
     }
   };
 
   const handleSendMessage = async () => {
-    const trimmedInput = inputText.trim();
-    if (!trimmedInput || loading) return;
+    if (inputText.trim() && !loading) {
+      // 如果是首次发送消息，设置状态为已开始聊天
+      if (!isChatStarted) {
+        // 先设置动画状态，显示输入框滑动到底部
+        setIsMovingToBottom(true);
+        
+        // 保存用户消息内容，以便在动画完成后发送
+        const userMessageText = inputText.trim();
+        setInputText(''); // 清空输入框
 
-    const userMessageText = trimmedInput;
-    setInputText(''); // 立即清空输入框
-
-    const newMessage: ChatMessage = {
-      user: 'User',
-      text: userMessageText,
-      id: Date.now().toString()
-    };
-
-    // 优化：立即更新UI显示用户消息
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-
-    if (!isChatStarted) {
-      setIsMovingToBottom(true);
-      setTimeout(() => {
-        setIsChatStarted(true);
-        setIsMovingToBottom(false);
-        // 滚动到底部可能需要稍微延迟，等待DOM更新
-        setTimeout(() => messageEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      }, 500); // 等待动画
-    } else {
-       // 滚动到底部可能需要稍微延迟，等待DOM更新
-       setTimeout(() => messageEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        // 等待动画完成后再设置聊天开始状态
+        setTimeout(async () => {
+          setIsChatStarted(true);
+          
+          // 创建新消息并添加到消息列表
+          const newMessage = { 
+            user: 'User', 
+            text: userMessageText,
+            id: Date.now().toString()
+          };
+          
+          const updatedMessages = [newMessage];
+          setMessages(updatedMessages);
+          
+          // 在状态改变后添加短暂延迟，让动画有时间执行
+          setTimeout(() => {
+            setIsMovingToBottom(false);
+            chatAreaRef.current?.scrollTo({
+              top: chatAreaRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }, 50);
+          
+          // 发送API请求
+          try {
+            setLoading(true);
+            setIsStreaming(true);
+            setStreamingResponse("");
+            
+            const aiResponse = await sendMessageToAPI(userMessageText);
+            
+            // 处理流式响应结束
+            setIsStreaming(false);
+            setLoading(false);
+            
+            // 添加AI回复到消息列表
+            const aiMessage: ChatMessage = { 
+              user: 'Copilot', 
+              text: aiResponse ? String(aiResponse) : '',
+              id: Date.now().toString()
+            };
+            
+            const messagesWithAIResponse = [...updatedMessages, aiMessage];
+            setMessages(messagesWithAIResponse);
+            
+            // 更新聊天历史
+            updateChatHistory(
+              currentChatId,
+              userMessageText,
+              aiResponse ? String(aiResponse) : '',
+              messagesWithAIResponse
+            );
+            
+            // 确保滚动到底部
+            setTimeout(() => {
+              if (chatAreaRef.current) {
+                chatAreaRef.current.scrollTo({
+                  top: chatAreaRef.current.scrollHeight,
+                  behavior: 'smooth'
+                });
+              }
+            }, 200);
+          } catch (error) {
+            console.error('消息发送失败:', error);
+            // 在聊天中显示错误消息
+            const errorMessage = {
+              user: 'Copilot',
+              text: `发送消息失败: ${error instanceof Error ? error.message : String(error)}`,
+              id: (Date.now() + 1).toString()
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          }
+        }, 500); // 和动画持续时间相同
+      } else {
+        // 聊天已经开始，直接发送消息
+        const userMessage = inputText.trim();
+        const newMessage = { 
+          user: 'User', 
+          text: userMessage,
+          id: Date.now().toString()
+        };
+        
+        // 更新消息列表，添加用户消息
+        const updatedMessages = [...messages, newMessage];
+        setMessages(updatedMessages);
+        setInputText('');
+        
+        try {
+          // 调用API
+          const aiResponse = await sendMessageToAPI(userMessage);
+          
+          if (aiResponse) {
+            const botResponse: ChatMessage = { 
+              user: 'Copilot', 
+              text: String(aiResponse),
+              id: (Date.now() + 1).toString()
+            };
+            
+            // 更新消息列表，添加AI响应
+            const finalMessages = [...updatedMessages, botResponse];
+            setMessages(finalMessages);
+            
+            // 更新对话历史
+            updateChatHistory(
+              currentChatId, 
+              userMessage, 
+              String(aiResponse), 
+              finalMessages
+            );
+            
+            // 确保在AI响应后滚动到底部
+            setTimeout(() => {
+              if (chatAreaRef.current) {
+                chatAreaRef.current.scrollTo({
+                  top: chatAreaRef.current.scrollHeight,
+                  behavior: 'smooth'
+                });
+              }
+            }, 200);
+          }
+        } catch (error) {
+          console.error('消息发送失败:', error);
+          // 在聊天中显示错误消息
+          const errorMessage = {
+            user: 'Copilot',
+            text: `发送消息失败: ${error instanceof Error ? error.message : String(error)}`,
+            id: (Date.now() + 1).toString()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      }
     }
-
-
-    // 调用API获取响应
-    const aiResponseText = await sendMessageToAPI(userMessageText);
-
-    // 创建AI消息
-    const aiMessage: ChatMessage = {
-      user: 'Copilot',
-      text: aiResponseText,
-      id: (Date.now() + 1).toString() // 确保ID不同
-    };
-
-    // 更新消息列表（包含用户和AI消息）
-    const finalMessages = [...updatedMessages, aiMessage];
-    setMessages(finalMessages);
-
-    // 更新聊天历史记录
-    updateChatHistory(currentChatId, userMessageText, aiResponseText, finalMessages);
-
-     // 确保在AI响应后滚动到底部
-     setTimeout(() => messageEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
+  const updateChatHistory = (chatId: string, userMessage: string, aiResponse: string, updatedMessages: ChatMessage[]) => {
+    // 更新聊天历史记录
+    const updatedHistories = chatHistories.map(chat => 
+      chat.id === chatId 
+        ? {
+            ...chat, 
+            lastMessage: userMessage, 
+            date: '刚刚',
+            messages: updatedMessages
+          } 
+        : chat
+    );
+    
+    setChatHistories(updatedHistories);
+    
+    // 更新本地存储
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistories));
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -797,95 +985,209 @@ const CopilotChat: React.FC = () => {
     }
   };
 
+  const selectChat = (id: string) => {
+    if (id !== currentChatId) {
+      setCurrentChatId(id);
+      const selectedChat = chatHistories.find(chat => chat.id === id);
+      if (selectedChat) {
+        setMessages(selectedChat.messages || []);
+        setIsChatStarted(selectedChat.messages && selectedChat.messages.length > 0);
+        // setInputText(''); // 切换时清空输入框
+      }
+    }
+  };
+
   const goToSettings = () => {
     navigate('/settings');
   };
 
-  // --- useEffect Hooks ---
-  useEffect(() => {
-    const savedHistories = localStorage.getItem(STORAGE_KEY);
-    if (savedHistories) {
-      try {
-        const parsed: ChatHistory[] = JSON.parse(savedHistories);
-        // 确保解析出的数据包含 messages 数组
-        const historiesWithMessages = parsed.map(chat => ({
-          ...chat,
-          messages: chat.messages || [] // 如果不存在则初始化为空数组
-        }));
-        setChatHistories(historiesWithMessages);
+  // 复制代码到剪贴板
+  const handleCopyCode = (code: string, id: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopySuccess(prev => ({ ...prev, [id]: true }));
+      message.success('代码已复制');
+      
+      setTimeout(() => {
+        setCopySuccess(prev => ({ ...prev, [id]: false }));
+      }, 2000);
+    }).catch(err => {
+      console.error('复制失败:', err);
+      message.error('复制失败');
+    });
+  };
 
-        if (historiesWithMessages.length > 0) {
-          const lastChat = historiesWithMessages[0];
-          setCurrentChatId(lastChat.id);
-          setMessages(lastChat.messages);
-          setIsChatStarted(lastChat.messages.length > 0);
-        } else {
-          createNewChat();
-        }
-      } catch (e) {
-        console.error('解析历史记录失败:', e);
-        localStorage.removeItem(STORAGE_KEY); // 解析失败则清除错误数据
-        createNewChat();
-      }
-    } else {
-      createNewChat();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 依赖项为空，仅在挂载时运行
-
-  // 滚动到底部逻辑 (合并简化)
-  useEffect(() => {
-    // 仅在聊天开始后，并且消息列表或流式响应变化时滚动
-    if (isChatStarted && (messages.length > 0 || streamingResponse)) {
-      // 使用 requestAnimationFrame 确保在下一次绘制前滚动
-      requestAnimationFrame(() => {
-        if (chatAreaRef.current) {
-          const { scrollTop, scrollHeight, clientHeight } = chatAreaRef.current;
-          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-          // 如果用户没有向上滚动太多，则自动滚动到底部
-          if (distanceFromBottom < 200 || isStreaming) { // 流式时强制滚动
-            chatAreaRef.current.scrollTo({
-              top: scrollHeight,
-              behavior: 'smooth'
-            });
-          }
-        }
-      });
-    }
-  }, [messages, streamingResponse, isChatStarted, isStreaming]); // 依赖项包含可能影响滚动的状态
-
-
-  // --- 渲染逻辑 ---
-  const renderMessage = (message: ChatMessage) => {
-    const isCopilot = message.user === 'Copilot';
-    const isErrorMessage = message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败');
-  
-    return (
-      <MessageItem
-        key={message.id}
-        $isUser={!isCopilot}
-        $isError={isErrorMessage}
-      >
-        <ErrorBoundary>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code: CodeBlock,
-              table: (props: any) => <MarkdownTable {...props} />,
-              th: (props: any) => <TableHeader {...props} />,
-              td: (props: any) => <TableCell {...props} />,
-            }}
-          >
-            {message.text}
-          </ReactMarkdown>
-        </ErrorBoundary>
-      </MessageItem>
+  // 自定义的代码块组件
+  const CodeBlock = (props: any) => {
+    const { className, children, inline } = props;
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+    const codeString = String(children).replace(/\n$/, '');
+    const codeId = `code-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // 代码折叠功能
+    const [isExpanded, setIsExpanded] = useState(false);
+    const codeLines = codeString.split('\n');
+    const isLongCode = codeLines.length > 5;
+    
+    const displayedCode = isLongCode && !isExpanded
+      ? codeLines.slice(0, 5).join('\n')
+      : codeString;
+    
+    const toggleExpand = () => {
+      setIsExpanded(!isExpanded);
+    };
+    
+    return !inline && language ? (
+      <CodeBlockWrapper>
+        {language && <LanguageLabel>{language}</LanguageLabel>}
+        <CopyButton 
+          onClick={() => handleCopyCode(codeString, codeId)}
+          title="复制代码"
+        >
+          {copySuccess[codeId] ? <CheckOutlined /> : <CopyOutlined />}
+        </CopyButton>
+        <SyntaxHighlighter 
+          style={oneLight as any} 
+          language={language}
+          PreTag="div"
+        >
+          {displayedCode}
+        </SyntaxHighlighter>
+        
+        {isLongCode && (
+          <ToggleButton onClick={toggleExpand}>
+            {isExpanded ? (
+              <>
+                <UpOutlined style={{ marginRight: 8 }} /> 收起代码
+              </>
+            ) : (
+              <>
+                <DownOutlined style={{ marginRight: 8 }} /> 展开代码 ({codeLines.length - 5} 行未显示)
+              </>
+            )}
+          </ToggleButton>
+        )}
+      </CodeBlockWrapper>
+    ) : (
+      <code className={className}>
+        {children}
+      </code>
     );
   };
-  
+
+  // 删除聊天历史记录
+  const handleDeleteHistory = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    
+    // 过滤掉要删除的聊天记录
+    const updatedHistories = chatHistories.filter(chat => chat.id !== id);
+    setChatHistories(updatedHistories);
+    
+    // 更新本地存储
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedHistories));
+    
+    message.success('聊天记录已删除');
+    
+    // 如果删除的是当前选中的会话，处理切换逻辑
+    if (id === currentChatId) {
+      if (updatedHistories.length > 0) {
+        // 切换到第一个聊天
+        const firstChat = updatedHistories[0];
+        setCurrentChatId(firstChat.id);
+        setMessages(firstChat.messages || []);
+        setIsChatStarted(firstChat.messages && firstChat.messages.length > 0);
+      } else {
+        // 没有聊天历史了，创建新的
+        createNewChat();
+      }
+    }
+  };
+
+  // ----------------------- 新增的函数 -----------------------
+  // 获取当前可见的最后一个消息气泡
+  const getVisibleLastMessageIndex = (): number => {
+    if (!chatAreaRef.current || !messagesListRef.current) return -1;
+
+    const chatAreaTop = chatAreaRef.current.scrollTop;
+    const chatAreaBottom = chatAreaTop + chatAreaRef.current.clientHeight;
+
+    let lastVisibleIndex = -1;
+
+    for (let i = 0; i < messages.length; i++) {
+      const messageElement = document.getElementById(`message-${i}`);
+      if (messageElement) {
+        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop; // 消息顶部相对于消息列表的偏移
+        const messageBottom = messageTop + messageElement.offsetHeight;
+
+        // 检查消息是否在可见区域内
+        if (messageTop < chatAreaBottom && messageBottom > chatAreaTop) {
+          lastVisibleIndex = i;
+        }
+      }
+    }
+
+    return lastVisibleIndex;
+  };
+
+  // 获取当前可见的第一个消息气泡  
+  const getVisibleFirstMessageIndex = (): number => {
+    if (!chatAreaRef.current || !messagesListRef.current) return -1;
+
+    const chatAreaTop = chatAreaRef.current.scrollTop;
+    const chatAreaBottom = chatAreaTop + chatAreaRef.current.clientHeight;
+
+    let firstVisibleIndex = -1;
+
+    for (let i = 0; i < messages.length; i++) {
+      const messageElement = document.getElementById(`message-${i}`);
+      if (messageElement) {
+        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop; // 消息顶部相对于消息列表的偏移
+        const messageBottom = messageTop + messageElement.offsetHeight;
+
+        // 检查消息是否在可见区域内
+        if (messageTop < chatAreaBottom && messageBottom > chatAreaTop) {
+          firstVisibleIndex = i;
+          break; // Exit loop after finding the first visible message
+        }
+      }
+    }
+
+    return firstVisibleIndex;
+  };
+
+  // 滚动到可见的第一个消息气泡的顶部
+  const scrollToFirstVisibleMessageTop = () => {
+    const lastVisibleIndex = getVisibleFirstMessageIndex();
+    if (lastVisibleIndex !== -1) {
+      const messageElement = document.getElementById(`message-${lastVisibleIndex}`);
+      if (messageElement && chatAreaRef.current && messagesListRef.current) {
+        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop - 20;
+        chatAreaRef.current.scrollTo({
+          top: messageTop,
+          behavior: 'smooth',
+        });
+      }
+    }
+  };
+
+  // 滚动到可见的最后一个消息气泡的底部
+  const scrollToLastVisibleMessageBottom = () => {
+    const lastVisibleIndex = getVisibleLastMessageIndex();
+    if (lastVisibleIndex !== -1) {
+      const messageElement = document.getElementById(`message-${lastVisibleIndex}`);
+      if (messageElement && chatAreaRef.current && messagesListRef.current) {
+        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop;
+        const messageHeight = messageElement.offsetHeight;
+        chatAreaRef.current.scrollTo({
+          top: messageTop + messageHeight - chatAreaRef.current.clientHeight + 40,
+          behavior: 'smooth',
+        });
+      }
+    }
+  };
+  // ----------------------- 新增的函数结束 -----------------------
 
   return (
-    // 不再需要 StyleSheetManager，因为使用了 Transient Props
     <Container>
       {/* 左侧边栏 */}
       <Sidebar>
@@ -899,23 +1201,33 @@ const CopilotChat: React.FC = () => {
             <span>新建</span>
           </NewChatButton>
         </SidebarTop>
-
+        
         {/* 历史对话列表 */}
-        <ChatHistoryListWrapper>
+        <ChatHistoryList>
           {chatHistories.map((chat) => (
-            <ChatHistoryItem
-              key={chat.id}
-              chat={chat}
+            <ChatHistoryItem 
+              key={chat.id} 
               active={chat.id === currentChatId}
-              onClick={selectChat}
-              handleDeleteHistory={handleDeleteHistory}
-            />
+              onClick={() => selectChat(chat.id)}
+            >
+              <ChatHistoryContent>
+                <ChatHistoryTitle>{chat.title}</ChatHistoryTitle>
+                <ChatHistoryPreview>{chat.lastMessage}</ChatHistoryPreview>
+              </ChatHistoryContent>
+              <ChatHistoryDate>{chat.date}</ChatHistoryDate>
+              <DeleteButton 
+                type="text"
+                icon={<DeleteOutlined />}
+                onClick={(e) => handleDeleteHistory(e, chat.id)}
+                title="删除聊天"
+              />
+            </ChatHistoryItem>
           ))}
-        </ChatHistoryListWrapper>
+        </ChatHistoryList>
       </Sidebar>
 
       {/* 主内容区 */}
-      <MainContent $showGradient={messages.length === 0 && !isStreaming}>
+      <MainContent showGradient={messages.length === 0 && !isStreaming}>
         {/* 顶部导航栏 */}
         <NavBar>
           <NavBarContent>
@@ -931,8 +1243,8 @@ const CopilotChat: React.FC = () => {
             <EmptyState>
               <LogoImg src={logoImage} alt="Copilot Logo" className="large-logo" />
               <WelcomeText>美好的一天！</WelcomeText>
-              <InitialInputContainer $isMovingToBottom={isMovingToBottom}>
-                <StyledInput
+              <InitialInputContainer isMovingToBottom={isMovingToBottom}>
+                <StyledInput 
                   placeholder="与 Copilot 聊天"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -941,9 +1253,14 @@ const CopilotChat: React.FC = () => {
                   disabled={loading || isMovingToBottom}
                 />
                 <InitialInputButtons>
-                  <SendButton
-                    type="primary"
-                    icon={<SendOutlined />}
+                  {/* <InputButton>
+                    <Tooltip title="上传图片">
+                      <PictureOutlined />
+                    </Tooltip>
+                  </InputButton> */}
+                  <SendButton 
+                    type="primary" 
+                    icon={<SendOutlined />} 
                     onClick={handleSendMessage}
                     disabled={!inputText.trim() || loading || isMovingToBottom}
                     loading={loading}
@@ -952,38 +1269,79 @@ const CopilotChat: React.FC = () => {
               </InitialInputContainer>
             </EmptyState>
           ) : (
-            <MessagesList>
-              {messages.map(renderMessage)}
-              {isStreaming && (
-                <MessageItem
-                  key="streaming"
-                  $isUser={false}
-                  $isError={streamingResponse.startsWith('❌')}
+            <MessagesList ref={messagesListRef}>
+              {messages.map((message, index) => (
+                <MessageItem 
+                  key={message.id}
+                  id={`message-${index}`}
+                  isUser={message.user !== 'Copilot'} 
+                  isError={message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败')}
                 >
-                  <ErrorBoundary>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code: CodeBlock,
-                        table: (props: any) => <MarkdownTable {...props} />,
-                        th: (props: any) => <TableHeader {...props} />,
-                        td: (props: any) => <TableCell {...props} />,
-                      }}
-                    >
-                      {streamingResponse + '▍'}
-                    </ReactMarkdown>
-                  </ErrorBoundary>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      table: (props: any) => (
+                        <MarkdownTable {...props} />
+                      ),
+                      th: (props: any) => (
+                        <TableHeader {...props} />
+                      ),
+                      td: (props: any) => (
+                        <TableCell {...props} />
+                      )
+                    }}
+                  >
+                    {message.text}
+                  </ReactMarkdown>
+                </MessageItem>
+              ))}
+              {isStreaming && (
+                <MessageItem 
+                  key="streaming" 
+                  isUser={false}
+                  isError={streamingResponse.startsWith('❌')}
+                >
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      table: (props: any) => (
+                        <MarkdownTable {...props} />
+                      ),
+                      th: (props: any) => (
+                        <TableHeader {...props} />
+                      ),
+                      td: (props: any) => (
+                        <TableCell {...props} />
+                      )
+                    }}
+                  >
+                    {streamingResponse}
+                  </ReactMarkdown>
                 </MessageItem>
               )}
               <div ref={messageEndRef} />
             </MessagesList>
           )}
         </ChatArea>
+        
+        {/* 滚动按钮 */}
+        {isChatStarted && (
+          <ScrollButtonsContainer>
+            <ScrollButton onClick={scrollToFirstVisibleMessageTop} title="滚动到顶部">
+              <UpOutlined />
+            </ScrollButton>
+            <ScrollButton onClick={scrollToLastVisibleMessageBottom} title="滚动到底部">
+              <DownOutlined />
+            </ScrollButton>
+          </ScrollButtonsContainer>
+        )}
 
         {/* 输入区域 - 仅在聊天已开始时显示 */}
         {isChatStarted && (
           <SlideUpInputContainer>
-            <StyledInput
+            <StyledInput 
               placeholder="与 Copilot 聊天"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -992,9 +1350,14 @@ const CopilotChat: React.FC = () => {
               disabled={loading}
             />
             <InputButtons>
-              <SendButton
-                type="primary"
-                icon={<SendOutlined />}
+              {/* <InputButton>
+                <Tooltip title="上传图片">
+                  <PictureOutlined />
+                </Tooltip>
+              </InputButton> */}
+              <SendButton 
+                type="primary" 
+                icon={<SendOutlined />} 
                 onClick={handleSendMessage}
                 disabled={!inputText.trim() || loading}
                 loading={loading}
