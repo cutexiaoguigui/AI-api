@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input, Tooltip, message } from 'antd';
+import { Button, Input, Tooltip, message, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, CopyOutlined, CheckOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
@@ -539,6 +539,15 @@ const StyledInput = styled(Input.TextArea)`
     border-color: #1890ff;
     box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
   }
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: #f9f9f9;
+  border-top: 1px solid #eee;
 `;
 
 interface ChatMessage {
@@ -1105,11 +1114,31 @@ const CopilotChat: React.FC = () => {
     // 代码折叠功能
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [showFullCode, setShowFullCode] = useState(false);
     const codeLines = codeString.split('\n');
     const isLongCode = codeLines.length > 5;
     
     const toggleExpand = () => {
-      setIsExpanded(!isExpanded);
+      // 如果要展开且代码很长
+      if (!isExpanded && isLongCode && codeLines.length > 50) {
+        // 设置加载状态
+        setIsLoading(true);
+        
+        // 延迟渲染完整代码，先让加载动画显示出来
+        setTimeout(() => {
+          setShowFullCode(true);
+          setIsExpanded(true);
+          // 再延迟一点关闭加载状态，确保渲染已完成
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 100);
+        }, 50);
+      } else {
+        // 代码不长或者是收起操作，直接切换
+        setIsExpanded(!isExpanded);
+        setShowFullCode(!isExpanded);
+      }
     };
     
     const copyCode = () => {
@@ -1154,14 +1183,29 @@ const CopilotChat: React.FC = () => {
         ) : (
           // 展开时或代码不长时，显示完整代码
           <>
-            <SyntaxHighlighter 
-              style={oneLight as any} 
-              language={language}
-              PreTag="div"
-            >
-              {codeString}
-            </SyntaxHighlighter>
-            {isLongCode && (
+            {isLoading ? (
+              <>
+                <SyntaxHighlighter 
+                  style={oneLight as any} 
+                  language={language}
+                  PreTag="div"
+                >
+                  {codeLines.slice(0, 5).join('\n')}
+                </SyntaxHighlighter>
+                <LoadingContainer>
+                  <Spin tip="代码加载中..." />
+                </LoadingContainer>
+              </>
+            ) : (
+              <SyntaxHighlighter 
+                style={oneLight as any} 
+                language={language}
+                PreTag="div"
+              >
+                {codeString}
+              </SyntaxHighlighter>
+            )}
+            {isLongCode && !isLoading && (
               <CollapseButton onClick={toggleExpand}>
                 <UpOutlined /> 收起代码
               </CollapseButton>
