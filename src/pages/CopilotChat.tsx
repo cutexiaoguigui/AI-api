@@ -9,6 +9,7 @@ import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import remarkGfm from 'remark-gfm';
 import logoImage from '../logo.png';
+import { Collapse } from 'react-collapse';
 
 // 按需加载语言支持
 import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
@@ -350,50 +351,8 @@ const SendButton = styled(Button)`
 const CodeBlockWrapper = styled.div`
   position: relative;
   margin: 10px 0;
-`;
-
-const CopyButton = styled.button`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  
-  &:hover {
-    background: white;
-    border-color: #1890ff;
-    color: #1890ff;
-  }
-`;
-
-const ToggleButton = styled.button`
-  background: rgba(240, 240, 240, 0.9);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: -5px;
-  margin-bottom: 5px;
-  transition: all 0.2s;
-  width: 100%;
-  
-  &:hover {
-    background: rgba(220, 220, 220, 0.9);
-    border-color: #aaa;
-  }
+  border-radius: 6px;
+  overflow: hidden;
 `;
 
 const LanguageLabel = styled.span`
@@ -410,17 +369,50 @@ const LanguageLabel = styled.span`
   text-transform: uppercase;
 `;
 
-const StyledInput = styled(Input.TextArea)`
-  padding: 16px;
-  border-radius: 24px;
-  border: 1px solid #d9d9d9;
-  font-size: 16px;
-  resize: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+const CopyButton = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
 
-  &:hover, &:focus {
+  &:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1890ff;
     border-color: #1890ff;
-    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  }
+`;
+
+const CollapseButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px;
+  background: #f0f0f0;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #e0e0e0;
+  }
+
+  svg {
+    margin-right: 8px;
   }
 `;
 
@@ -535,6 +527,20 @@ const ScrollButton = styled(Button)`
   }
 `;
 
+const StyledInput = styled(Input.TextArea)`
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid #d9d9d9;
+  font-size: 16px;
+  resize: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  &:hover, &:focus {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  }
+`;
+
 interface ChatMessage {
   user: string;
   text: string;
@@ -550,6 +556,50 @@ interface ChatHistory {
 }
 
 const STORAGE_KEY = 'copilot_chat_histories';
+
+// 添加错误边界组件
+class CodeBlockErrorBoundary extends React.Component<{
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}, {
+  hasError: boolean;
+  error: Error | null;
+}> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    // 更新状态，下次渲染时显示降级UI
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // 可以在此处记录错误信息
+    console.error('代码块组件错误:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // 提供降级UI
+      return this.props.fallback || (
+        <div style={{ 
+          padding: '10px', 
+          border: '1px solid #ff4d4f', 
+          borderRadius: '8px',
+          backgroundColor: 'rgba(255, 77, 79, 0.05)',
+          color: '#ff4d4f'
+        }}>
+          <p>代码块渲染错误，请尝试刷新页面</p>
+          <small>{this.state.error?.message}</small>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const CopilotChat: React.FC = () => {
   const { settings } = useChat();
@@ -1016,62 +1066,109 @@ const CopilotChat: React.FC = () => {
     });
   };
 
-  // 自定义的代码块组件
+  // 修改CodeBlock组件使用react-collapse
   const CodeBlock = (props: any) => {
     const { className, children, inline } = props;
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
     const codeString = String(children).replace(/\n$/, '');
-    const codeId = `code-${Math.random().toString(36).substring(2, 9)}`;
     
-    // 代码折叠功能
-    const [isExpanded, setIsExpanded] = useState(false);
-    const codeLines = codeString.split('\n');
-    const isLongCode = codeLines.length > 5;
-    
-    const displayedCode = isLongCode && !isExpanded
-      ? codeLines.slice(0, 5).join('\n')
-      : codeString;
-    
-    const toggleExpand = () => {
-      setIsExpanded(!isExpanded);
-    };
-    
+    // 如果是行内代码，直接返回不需要错误边界
+    if (inline) {
+      return <code className={className}>{children}</code>;
+    }
+
+    // 使用错误边界封装展开/折叠功能
     return !inline && language ? (
       <CodeBlockWrapper>
         {language && <LanguageLabel>{language}</LanguageLabel>}
-        <CopyButton 
-          onClick={() => handleCopyCode(codeString, codeId)}
-          title="复制代码"
-        >
-          {copySuccess[codeId] ? <CheckOutlined /> : <CopyOutlined />}
-        </CopyButton>
-        <SyntaxHighlighter 
-          style={oneLight as any} 
-          language={language}
-          PreTag="div"
-        >
-          {displayedCode}
-        </SyntaxHighlighter>
         
-        {isLongCode && (
-          <ToggleButton onClick={toggleExpand}>
-            {isExpanded ? (
-              <>
-                <UpOutlined style={{ marginRight: 8 }} /> 收起代码
-              </>
-            ) : (
-              <>
-                <DownOutlined style={{ marginRight: 8 }} /> 展开代码 ({codeLines.length - 5} 行未显示)
-              </>
-            )}
-          </ToggleButton>
-        )}
+        <CodeBlockErrorBoundary>
+          <CodeBlockContent 
+            language={language}
+            codeString={codeString}
+          />
+        </CodeBlockErrorBoundary>
       </CodeBlockWrapper>
     ) : (
       <code className={className}>
         {children}
       </code>
+    );
+  };
+
+  // 提取代码块内容为单独组件以便错误边界捕获其错误
+  const CodeBlockContent = ({ language, codeString }: { 
+    language: string, 
+    codeString: string
+  }) => {
+    // 代码折叠功能
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const codeLines = codeString.split('\n');
+    const isLongCode = codeLines.length > 5;
+    
+    const toggleExpand = () => {
+      setIsExpanded(!isExpanded);
+    };
+    
+    const copyCode = () => {
+      navigator.clipboard.writeText(codeString).then(() => {
+        setCopied(true);
+        message.success('代码已复制到剪贴板');
+        
+        // 2秒后重置复制状态
+        setTimeout(() => {
+          setCopied(false);
+        }, 2000);
+      }).catch(err => {
+        console.error('复制失败:', err);
+        message.error('复制失败');
+      });
+    };
+
+    // 修复展开逻辑，确保只显示一个代码块
+    return (
+      <>
+        {/* 复制按钮 */}
+        <CopyButton onClick={copyCode}>
+          {copied ? <CheckOutlined /> : <CopyOutlined />}
+          {copied ? ' 已复制' : ' 复制'}
+        </CopyButton>
+        
+        {/* 只需要一个代码块，根据展开状态决定显示的内容 */}
+        {isLongCode && !isExpanded ? (
+          // 未展开时只显示前5行
+          <>
+            <SyntaxHighlighter 
+              style={oneLight as any} 
+              language={language}
+              PreTag="div"
+            >
+              {codeLines.slice(0, 5).join('\n')}
+            </SyntaxHighlighter>
+            <CollapseButton onClick={toggleExpand}>
+              <DownOutlined /> 展开代码 ({codeLines.length - 5} 行未显示)
+            </CollapseButton>
+          </>
+        ) : (
+          // 展开时或代码不长时，显示完整代码
+          <>
+            <SyntaxHighlighter 
+              style={oneLight as any} 
+              language={language}
+              PreTag="div"
+            >
+              {codeString}
+            </SyntaxHighlighter>
+            {isLongCode && (
+              <CollapseButton onClick={toggleExpand}>
+                <UpOutlined /> 收起代码
+              </CollapseButton>
+            )}
+          </>
+        )}
+      </>
     );
   };
 
@@ -1245,7 +1342,7 @@ const CopilotChat: React.FC = () => {
               <WelcomeText>美好的一天！</WelcomeText>
               <InitialInputContainer isMovingToBottom={isMovingToBottom}>
                 <StyledInput 
-                  placeholder="与 Copilot 聊天"
+                  placeholder="与 AI 聊天"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -1342,7 +1439,7 @@ const CopilotChat: React.FC = () => {
         {isChatStarted && (
           <SlideUpInputContainer>
             <StyledInput 
-              placeholder="与 Copilot 聊天"
+              placeholder="与 AI 聊天"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}
