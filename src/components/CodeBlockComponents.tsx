@@ -156,7 +156,7 @@ export const CodeBlockContent = ({ language, codeString }: {
   
   const toggleExpand = () => {
     // 如果要展开且代码很长
-    if (!isExpanded && isLongCode && codeLines.length > 50) {
+    if (!isExpanded && isLongCode/* && codeLines.length > 50 */) {
       // 设置加载状态
       setIsLoading(true);
       

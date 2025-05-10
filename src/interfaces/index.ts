@@ -17,15 +17,12 @@ export interface AppSettings {
   apiEndpoint: string;
   apiKey: string;
   model: string;
-  temperature: number;
   systemPrompt: string;
   theme: {
     primaryColor: string;
     darkMode?: boolean;
-    fontSize?: number;
-    messageSpacing?: number;
   };
-  username?: string;
-  autoSave?: boolean;
-  privacyMode?: boolean;
+  enableMarkdown?: boolean;
+  enableStreaming?: boolean;
+  showTimestamp?: boolean;
 } 

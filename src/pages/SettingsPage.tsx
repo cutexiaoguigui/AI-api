@@ -12,6 +12,31 @@ const { TextArea } = Input;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
+const ColorPicker = React.forwardRef<HTMLInputElement, { defaultValue: string; onChange?: (value: string) => void }>(
+  ({ defaultValue, onChange }, ref) => {
+    const [color, setColor] = useState(defaultValue);
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newColor = e.target.value;
+      setColor(newColor);
+      onChange?.(newColor);
+    };
+    
+    return (
+      <Space>
+        <input
+          ref={ref}
+          type="color"
+          value={color}
+          onChange={handleChange}
+          style={{ width: 80, height: 32, padding: 4, border: '1px solid #d9d9d9', borderRadius: 2 }}
+        />
+        <Text>{color}</Text>
+      </Space>
+    );
+  }
+);
+
 const SettingsPage: React.FC = () => {
   const { settings, setSettings, clearCache } = useChat();
   const [form] = Form.useForm();
@@ -248,70 +273,50 @@ const SettingsPage: React.FC = () => {
                   name="apiKey"
                   label="API 密钥"
                   rules={[{ required: true, message: '请输入 API 密钥' }]}
-                  tooltip={{ title: "可在 OpenAI 或其他兼容服务商获取的 API 密钥", icon: <InfoCircleOutlined /> }}
                 >
                   <Input.Password placeholder="sk-..." />
                 </Form.Item>
 
-                <Divider />
-
-                <Title level={4}>模型设置</Title>
-                <Paragraph type="secondary">
-                  配置使用的模型和参数
-                </Paragraph>
-
                 <Form.Item
                   name="model"
-                  label="选择模型"
-                  rules={[{ required: true, message: '请选择模型' }]}
+                  label="模型"
+                  tooltip={{ title: "选择您要使用的AI模型", icon: <InfoCircleOutlined /> }}
                 >
                   <Select
-                    placeholder="选择要使用的模型"
-                    allowClear
                     showSearch
-                  >
-                    {modelOptions.map(option => (
-                      <Option key={option.value} value={option.value}>{option.label}</Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item
-                  name="temperature"
-                  label="温度"
-                  rules={[{ required: true, message: '请设置温度' }]}
-                  tooltip={{ title: "控制响应的随机性，较低的值使响应更确定，较高的值使响应更多样化", icon: <InfoCircleOutlined /> }}
-                >
-                  <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
+                    placeholder="选择模型"
+                    options={modelOptions}
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                  />
                 </Form.Item>
 
                 <Form.Item
                   name="systemPrompt"
                   label="系统提示词"
-                  tooltip={{ title: "设置 AI 的行为和角色定位", icon: <InfoCircleOutlined /> }}
+                  tooltip={{ title: "设置AI的行为和角色定位", icon: <InfoCircleOutlined /> }}
                 >
                   <TextArea
                     placeholder="你是一个有用的AI助手。"
-                    autoSize={{ minRows: 3, maxRows: 6 }}
+                    autoSize={{ minRows: 2, maxRows: 6 }}
                   />
                 </Form.Item>
 
-                <ButtonRow>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    style={{ backgroundColor: settings.theme.primaryColor, borderColor: settings.theme.primaryColor }}
-                    icon={<SaveOutlined />}
-                  >
-                    保存设置
-                  </Button>
-                </ButtonRow>
               </Space>
+              
+              <Divider />
+              
+              <Form.Item>
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />}>
+                  保存设置
+                </Button>
+              </Form.Item>
             </Form>
           </SettingsCard>
         </TabPane>
 
-        <TabPane tab={<TabLabel icon={<BgColorsOutlined />} text="外观设置" />} key="appearance">
+        <TabPane tab={<TabLabel icon={<BgColorsOutlined />} text="界面设置" />} key="appearance">
           <SettingsCard>
             <Form
               form={form}
@@ -321,139 +326,65 @@ const SettingsPage: React.FC = () => {
               requiredMark={false}
             >
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Title level={4}>界面外观</Title>
+                <Title level={4}>外观设置</Title>
                 <Paragraph type="secondary">
-                  自定义应用界面的外观和行为
+                  自定义应用主题和界面样式
                 </Paragraph>
 
                 <Form.Item
                   name={['theme', 'primaryColor']}
                   label="主题色"
-                  tooltip={{ title: "应用的主色调，影响按钮和重点元素的颜色", icon: <InfoCircleOutlined /> }}
+                  tooltip={{ title: "选择应用的主题色", icon: <InfoCircleOutlined /> }}
                 >
-                  <ColorPickerRow>
-                    <Input type="color" style={{ width: 120 }} />
-                    <Text type="secondary">默认浅青色</Text>
-                  </ColorPickerRow>
+                  <ColorPicker defaultValue={form.getFieldValue(['theme', 'primaryColor']) || '#49D9FD'} />
                 </Form.Item>
 
                 <Form.Item
                   name={['theme', 'darkMode']}
-                  label="深色模式"
+                  label="夜间模式"
                   valuePropName="checked"
-                  tooltip={{ title: "启用深色主题", icon: <InfoCircleOutlined /> }}
+                  tooltip={{ title: "启用夜间模式", icon: <InfoCircleOutlined /> }}
                 >
                   <Switch />
                 </Form.Item>
 
                 <Form.Item
-                  name={['theme', 'fontSize']}
-                  label="字体大小"
-                  tooltip={{ title: "调整应用整体字体大小", icon: <InfoCircleOutlined /> }}
+                  name="enableMarkdown"
+                  label="启用Markdown"
+                  valuePropName="checked"
+                  tooltip={{ title: "启用Markdown渲染", icon: <InfoCircleOutlined /> }}
                 >
-                  <InputNumber 
-                    min={12} 
-                    max={18} 
-                    addonAfter="px"
-                    style={{ width: '100%' }}
-                    placeholder="16"
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  name={['theme', 'messageSpacing']}
-                  label="消息间距"
-                  tooltip={{ title: "调整聊天消息之间的间距", icon: <InfoCircleOutlined /> }}
-                >
-                  <InputNumber 
-                    min={8} 
-                    max={24} 
-                    addonAfter="px"
-                    style={{ width: '100%' }}
-                    placeholder="16"
-                  />
-                </Form.Item>
-
-                <ButtonRow>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    style={{ backgroundColor: settings.theme.primaryColor, borderColor: settings.theme.primaryColor }}
-                    icon={<SaveOutlined />}
-                  >
-                    保存设置
-                  </Button>
-                </ButtonRow>
-              </Space>
-            </Form>
-          </SettingsCard>
-        </TabPane>
-
-        <TabPane tab={<TabLabel icon={<UserOutlined />} text="用户设置" />} key="user">
-          <SettingsCard>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Title level={4}>个性化设置</Title>
-              <Paragraph type="secondary">
-                自定义用户体验和隐私设置
-              </Paragraph>
-
-              <Form
-                form={form}
-                layout="vertical"
-                initialValues={settings}
-                onFinish={onFinish}
-                requiredMark={false}
-              >
-                <Form.Item
-                  name="username"
-                  label="用户名称"
-                  tooltip={{ title: "您的名称，将显示在聊天界面", icon: <InfoCircleOutlined /> }}
-                >
-                  <Input placeholder="请输入您的名称" />
+                  <Switch />
                 </Form.Item>
                 
                 <Form.Item
-                  name="autoSave"
-                  label="自动保存对话"
+                  name="showTimestamp"
+                  label="显示时间戳"
                   valuePropName="checked"
-                  tooltip={{ title: "自动保存所有对话记录", icon: <InfoCircleOutlined /> }}
-                >
-                  <Switch defaultChecked />
-                </Form.Item>
-
-                <Form.Item
-                  name="privacyMode"
-                  label="隐私模式"
-                  valuePropName="checked"
-                  tooltip={{ title: "不在本地存储敏感信息", icon: <InfoCircleOutlined /> }}
+                  tooltip={{ title: "在消息下方显示发送时间", icon: <InfoCircleOutlined /> }}
                 >
                   <Switch />
                 </Form.Item>
+
+                <Form.Item
+                  name="enableStreaming"
+                  label="流式输出"
+                  valuePropName="checked"
+                  tooltip={{ title: "启用流式响应，实时显示AI输出", icon: <InfoCircleOutlined /> }}
+                >
+                  <Switch />
+                </Form.Item>
+                
+              </Space>
 
                 <Divider />
 
-                <Title level={5}>数据管理</Title>
-                
-                <ButtonRow>
-                  <Button 
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={handleClearCache}
-                  >
-                    删除所有数据
-                  </Button>
-                  
-                  <Button 
-                    type="primary" 
-                    htmlType="submit" 
-                    style={{ backgroundColor: settings.theme.primaryColor, borderColor: settings.theme.primaryColor }}
-                    icon={<SaveOutlined />}
-                  >
+              <Form.Item>
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />}>
                     保存设置
                   </Button>
-                </ButtonRow>
+              </Form.Item>
               </Form>
-            </Space>
           </SettingsCard>
         </TabPane>
       </SettingsTabs>

@@ -20,11 +20,13 @@ const defaultSettings: AppSettings = {
   apiEndpoint: 'https://gemini-2.cutexiaoguigui.eu.org/',
   apiKey: 'AIzaSyDg6HBz-IH_bDkwTgfWWlBcVy2BKwQIpEU',
   model: 'gemini-2.0-flash',
-  temperature: 0.7,
   systemPrompt: '你是一个有用的AI助手。',
   theme: {
     primaryColor: '#49D9FD', // 浅青色
   },
+  enableMarkdown: true,
+  enableStreaming: true,
+  showTimestamp: true,
 };
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -180,8 +182,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({
           model: settings.model,
           messages,
-          temperature: settings.temperature,
-          stream: true,
+          stream: settings.enableStreaming,
         }),
       });
       

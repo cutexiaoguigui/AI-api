@@ -429,6 +429,7 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   }};
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   line-height: 1.5;
+  position: relative;
 
   pre {
     max-width: 100%;
@@ -460,6 +461,22 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   li {
     margin-bottom: 4px;
   }
+`;
+
+const MessageContainer = styled.div<{ isUser: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: ${props => props.isUser ? 'flex-end' : 'flex-start'};
+  margin-bottom: 8px;
+  width: 100%;
+`;
+
+const Timestamp = styled.div<{ isUser: boolean }>`
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+  text-align: ${props => props.isUser ? 'right' : 'left'};
+  padding-bottom: 2px;
 `;
 
 const MarkdownTable = styled.table`
@@ -547,6 +564,7 @@ interface ChatMessage {
   user: string;
   text: string;
   id: string;
+  timestamp: number;
 }
 
 interface ChatHistory {
@@ -819,7 +837,7 @@ const CopilotChat: React.FC = () => {
         body: JSON.stringify({
           model: settings.model,
           messages: apiMessages,
-          temperature: settings.temperature,
+          // temperature: settings.temperature,
           stream: true,
         }),
       });
@@ -897,7 +915,8 @@ const CopilotChat: React.FC = () => {
           const newMessage = { 
             user: 'User', 
             text: userMessageText,
-            id: Date.now().toString()
+            id: Date.now().toString(),
+            timestamp: Date.now()
           };
           
           const updatedMessages = [newMessage];
@@ -928,7 +947,8 @@ const CopilotChat: React.FC = () => {
             const aiMessage: ChatMessage = { 
               user: 'Copilot', 
               text: aiResponse ? String(aiResponse) : '',
-              id: Date.now().toString()
+              id: Date.now().toString(),
+              timestamp: Date.now()
             };
             
             const messagesWithAIResponse = [...updatedMessages, aiMessage];
@@ -957,7 +977,8 @@ const CopilotChat: React.FC = () => {
             const errorMessage = {
               user: 'Copilot',
               text: `发送消息失败: ${error instanceof Error ? error.message : String(error)}`,
-              id: (Date.now() + 1).toString()
+              id: (Date.now() + 1).toString(),
+              timestamp: Date.now()
             };
             setMessages(prev => [...prev, errorMessage]);
           }
@@ -968,7 +989,8 @@ const CopilotChat: React.FC = () => {
         const newMessage = { 
           user: 'User', 
           text: userMessage,
-          id: Date.now().toString()
+          id: Date.now().toString(),
+          timestamp: Date.now()
         };
         
         // 更新消息列表，添加用户消息
@@ -984,7 +1006,8 @@ const CopilotChat: React.FC = () => {
             const botResponse: ChatMessage = { 
               user: 'Copilot', 
               text: String(aiResponse),
-              id: (Date.now() + 1).toString()
+              id: (Date.now() + 1).toString(),
+              timestamp: Date.now()
             };
             
             // 更新消息列表，添加AI响应
@@ -1015,7 +1038,8 @@ const CopilotChat: React.FC = () => {
           const errorMessage = {
             user: 'Copilot',
             text: `发送消息失败: ${error instanceof Error ? error.message : String(error)}`,
-            id: (Date.now() + 1).toString()
+            id: (Date.now() + 1).toString(),
+            timestamp: Date.now()
           };
           setMessages(prev => [...prev, errorMessage]);
         }
@@ -1180,7 +1204,7 @@ const CopilotChat: React.FC = () => {
     if (lastVisibleIndex !== -1) {
       const messageElement = document.getElementById(`message-${lastVisibleIndex}`);
       if (messageElement && chatAreaRef.current && messagesListRef.current) {
-        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop - 20;
+        const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop - 40;
         chatAreaRef.current.scrollTo({
           top: messageTop,
           behavior: 'smooth',
@@ -1198,7 +1222,7 @@ const CopilotChat: React.FC = () => {
         const messageTop = messageElement.offsetTop - messagesListRef.current.offsetTop;
         const messageHeight = messageElement.offsetHeight;
         chatAreaRef.current.scrollTo({
-          top: messageTop + messageHeight - chatAreaRef.current.clientHeight + 40,
+          top: messageTop + messageHeight - chatAreaRef.current.clientHeight + 60,
           behavior: 'smooth',
         });
       }
@@ -1290,36 +1314,81 @@ const CopilotChat: React.FC = () => {
           ) : (
             <MessagesList ref={messagesListRef}>
               {messages.map((message, index) => (
-                <MemoizedMessageItem 
-                  key={message.id} 
-                  message={message} 
-                  index={index}
-                />
+                <MessageContainer isUser={message.user !== 'Copilot'}>
+                  <MessageItem 
+                    key={message.id} 
+                    id={`message-${index}`}
+                    isUser={message.user !== 'Copilot'} 
+                    isError={message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败')}
+                  >
+                    {settings.enableMarkdown ? (
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code: CodeBlock,
+                          table: (props: any) => (
+                            <MarkdownTable {...props} />
+                          ),
+                          th: (props: any) => (
+                            <TableHeader {...props} />
+                          ),
+                          td: (props: any) => (
+                            <TableCell {...props} />
+                          )
+                        }}
+                      >
+                        {message.text}
+                      </ReactMarkdown>
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>
+                        {message.text}
+                      </div>
+                    )}
+                    {settings.showTimestamp && message.timestamp && (
+                      <Timestamp isUser={message.user !== 'Copilot'}>
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                      </Timestamp>
+                    )}
+                  </MessageItem>
+                </MessageContainer>
               ))}
               {isStreaming && (
-                <MessageItem 
-                  key="streaming" 
-                  isUser={false}
-                  isError={streamingResponse.startsWith('❌')}
-                >
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code: CodeBlock,
-                      table: (props: any) => (
-                        <MarkdownTable {...props} />
-                      ),
-                      th: (props: any) => (
-                        <TableHeader {...props} />
-                      ),
-                      td: (props: any) => (
-                        <TableCell {...props} />
-                      )
-                    }}
+                <MessageContainer isUser={false}>
+                  <MessageItem 
+                    key="streaming" 
+                    isUser={false}
+                    isError={streamingResponse.startsWith('❌')}
                   >
-                    {streamingResponse}
-                  </ReactMarkdown>
-                </MessageItem>
+                    {settings.enableMarkdown ? (
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code: CodeBlock,
+                          table: (props: any) => (
+                            <MarkdownTable {...props} />
+                          ),
+                          th: (props: any) => (
+                            <TableHeader {...props} />
+                          ),
+                          td: (props: any) => (
+                            <TableCell {...props} />
+                          )
+                        }}
+                      >
+                        {streamingResponse}
+                      </ReactMarkdown>
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>
+                        {streamingResponse}
+                      </div>
+                    )}
+                    {settings.showTimestamp && (
+                      <Timestamp isUser={false}>
+                        {new Date().toLocaleTimeString()}
+                      </Timestamp>
+                    )}
+                  </MessageItem>
+                </MessageContainer>
               )}
               <div ref={messageEndRef} />
             </MessagesList>
