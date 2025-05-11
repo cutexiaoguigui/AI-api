@@ -3,7 +3,8 @@ import { Spin, message } from 'antd';
 import { CheckOutlined, CopyOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { oneLight, oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { useChat } from '../contexts/ChatContext';
 
 // 按需加载语言支持
 import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
@@ -25,18 +26,19 @@ const CodeBlockWrapper = styled.div`
   margin: 10px 0;
   border-radius: 6px;
   overflow: hidden;
+  background-color: ${props => props.theme.isDarkMode ? 'rgb(40, 44, 52)' : '#f6f8fa'};
 `;
 
 const LanguageLabel = styled.span`
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
+  background: ${props => props.theme.isDarkMode ? 'rgba(45, 45, 45, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#ddd'};
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 12px;
-  color: #666;
+  color: ${props => props.theme.isDarkMode ? '#aaa' : '#666'};
   z-index: 10;
   text-transform: uppercase;
 `;
@@ -49,19 +51,19 @@ const CopyButton = styled.button`
   align-items: center;
   justify-content: center;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
+  background: ${props => props.theme.isDarkMode ? 'rgba(45, 45, 45, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#ddd'};
   border-radius: 4px;
   font-size: 12px;
-  color: #666;
+  color: ${props => props.theme.isDarkMode ? '#aaa' : '#666'};
   cursor: pointer;
   z-index: 10;
   transition: all 0.2s;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.95);
-    color: #1890ff;
-    border-color: #1890ff;
+    background: ${props => props.theme.isDarkMode ? 'rgba(60, 60, 60, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+    color: ${props => props.theme.primaryColor};
+    border-color: ${props => props.theme.primaryColor};
   }
 `;
 
@@ -71,16 +73,16 @@ const CollapseButton = styled.button`
   justify-content: center;
   width: 100%;
   padding: 8px;
-  background: #f0f0f0;
+  background: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#f0f0f0'};
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#e0e0e0'};
   cursor: pointer;
   font-size: 13px;
-  color: #666;
+  color: ${props => props.theme.isDarkMode ? '#aaa' : '#666'};
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: #e0e0e0;
+    background-color: ${props => props.theme.isDarkMode ? '#3a3a3a' : '#e0e0e0'};
   }
 
   svg {
@@ -93,8 +95,8 @@ const LoadingContainer = styled.div`
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background: #f9f9f9;
-  border-top: 1px solid #eee;
+  background: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#f9f9f9'};
+  border-top: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 // 添加错误边界组件
@@ -154,8 +156,13 @@ export const CodeBlockContent = ({ language, codeString }: {
   const codeLines = codeString.split('\n');
   const isLongCode = codeLines.length > 5;
   
+  // 使用useContext访问主题信息，而不是直接从document.body读取
+  const { settings } = useChat();
+  const isDarkMode = settings.theme.darkMode;
+  const codeStyle = isDarkMode ? oneDark : oneLight;
+
   const toggleExpand = () => {
-    // 如果要展开且代码很长
+    // 如果要展开
     if (!isExpanded && isLongCode/* && codeLines.length > 50 */) {
       // 设置加载状态
       setIsLoading(true);
@@ -170,9 +177,18 @@ export const CodeBlockContent = ({ language, codeString }: {
         }, 100);
       }, 50);
     } else {
-      // 代码不长或者是收起操作，直接切换
-      setIsExpanded(!isExpanded);
-      setShowFullCode(!isExpanded);
+      // 收起操作
+      // setIsExpanded(!isExpanded);
+      // setShowFullCode(!isExpanded);
+      setIsLoading(true);
+      setTimeout(() => {
+        setShowFullCode(false);
+        setIsExpanded(false);
+        // 再延迟一点关闭加载状态，确保渲染已完成
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 100);
+      }, 50);
     }
   };
   
@@ -205,7 +221,7 @@ export const CodeBlockContent = ({ language, codeString }: {
         // 未展开时只显示前5行
         <>
           <SyntaxHighlighter 
-            style={oneLight as any} 
+            style={codeStyle as any} 
             language={language}
             PreTag="div"
           >
@@ -221,7 +237,7 @@ export const CodeBlockContent = ({ language, codeString }: {
           {isLoading ? (
             <>
               <SyntaxHighlighter 
-                style={oneLight as any} 
+                style={codeStyle as any} 
                 language={language}
                 PreTag="div"
               >
@@ -233,14 +249,15 @@ export const CodeBlockContent = ({ language, codeString }: {
             </>
           ) : (
             <SyntaxHighlighter 
-              style={oneLight as any} 
+              style={codeStyle as any} 
               language={language}
               PreTag="div"
             >
               {codeString}
             </SyntaxHighlighter>
           )}
-          {isLongCode && !isLoading && (
+          
+          {isLongCode && (
             <CollapseButton onClick={toggleExpand}>
               <UpOutlined /> 收起代码
             </CollapseButton>
@@ -258,6 +275,10 @@ export const CodeBlock = (props: any) => {
   const language = match ? match[1] : '';
   const codeString = String(children).replace(/\n$/, '');
   
+  // 使用useContext访问主题信息
+  const { settings } = useChat();
+  const isDarkMode = settings.theme.darkMode;
+
   // 如果是行内代码，直接返回不需要错误边界
   if (inline) {
     return <code className={className}>{children}</code>;
@@ -268,7 +289,17 @@ export const CodeBlock = (props: any) => {
     <CodeBlockWrapper>
       {language && <LanguageLabel>{language}</LanguageLabel>}
       
-      <CodeBlockErrorBoundary>
+      <CodeBlockErrorBoundary fallback={
+        <div style={{ 
+          padding: '16px', 
+          border: '1px solid #ff4d4f', 
+          borderRadius: '8px',
+          backgroundColor: isDarkMode ? 'rgba(255, 77, 79, 0.1)' : 'rgba(255, 77, 79, 0.05)',
+          color: isDarkMode ? '#ff7875' : '#ff4d4f'
+        }}>
+          <p>代码块渲染错误，请尝试刷新页面</p>
+        </div>
+      }>
         <CodeBlockContent 
           language={language}
           codeString={codeString}

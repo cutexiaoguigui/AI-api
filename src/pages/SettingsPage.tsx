@@ -54,9 +54,9 @@ const SettingsPage: React.FC = () => {
       theme: {
         ...settings.theme,
         primaryColor: values.theme?.primaryColor || '#49D9FD',
+        darkMode: values.theme?.darkMode
       }
     });
-    // src/pages/SettingsPage.tsx，大约在第33行
     messageApi.success('设置已保存');
   };
 
@@ -396,6 +396,8 @@ const SettingsContainer = styled.div`
   max-width: 900px;
   margin: 0 auto;
   padding: 24px;
+  background-color: ${props => props.theme.colors.background};
+  color: ${props => props.theme.colors.text};
 `;
 
 const Header = styled.div`
@@ -408,18 +410,52 @@ const Header = styled.div`
     margin: 0;
     flex-grow: 1;
     text-align: center;
+    color: ${props => props.theme.colors.text};
   }
 `;
 
 const SettingsCard = styled(Card)`
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px ${props => props.theme.isDarkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'};
   margin-bottom: 24px;
+  background-color: ${props => props.theme.colors.cardBackground};
+  
+  .ant-card-body {
+    color: ${props => props.theme.colors.text};
+  }
+  
+  .ant-typography {
+    color: ${props => props.theme.colors.text};
+  }
+  
+  .ant-typography-secondary {
+    color: ${props => props.theme.colors.secondaryText};
+  }
+  
+  .ant-form-item-label > label {
+    color: ${props => props.theme.colors.text};
+  }
 `;
 
 const SettingsTabs = styled(Tabs)`
   .ant-tabs-nav {
     margin-bottom: 16px;
+  }
+  
+  .ant-tabs-tab {
+    color: ${props => props.theme.colors.secondaryText};
+    
+    &:hover {
+      color: ${props => props.theme.primaryColor};
+    }
+    
+    &.ant-tabs-tab-active .ant-tabs-tab-btn {
+      color: ${props => props.theme.primaryColor} !important;
+    }
+  }
+  
+  .ant-tabs-ink-bar {
+    background-color: ${props => props.theme.primaryColor};
   }
 `;
 

@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { UserOutlined, RobotOutlined, CopyOutlined, CheckOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import { Message } from '../interfaces';
+import { useChat } from '../contexts/ChatContext';
 
 const { Text } = Typography;
 
@@ -204,6 +205,7 @@ const renderMarkdown = (content: string): React.ReactNode => {
 
 const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const isUser = message.role === 'user';
+  const { settings } = useChat();
   
   return (
     <MessageContainer isUser={isUser}>
@@ -226,12 +228,18 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           )}
           
           <MessageText>
-            {message.role === 'assistant' ? (
+            {message.role === 'assistant' && settings.enableMarkdown ? (
               <MarkdownContainer>
                 {renderMarkdown(message.content || '正在思考...')}
               </MarkdownContainer>
             ) : (
               message.content
+            )}
+            
+            {settings.showTimestamp && message.timestamp && (
+              <MessageTimestamp isUser={isUser}>
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </MessageTimestamp>
             )}
           </MessageText>
         </MessageContent>
@@ -293,16 +301,18 @@ const StyledAntTable = styled(Table)`
   margin: 16px 0;
   
   .ant-table-thead > tr > th {
-    background-color: #fafafa;
+    background-color: ${props => props.theme.isDarkMode ? '#333' : '#fafafa'};
     font-weight: 600;
+    color: ${props => props.theme.isDarkMode ? '#e6e6e6' : 'inherit'};
   }
   
   .ant-table-tbody > tr > td {
     padding: 10px;
+    color: ${props => props.theme.isDarkMode ? '#e6e6e6' : 'inherit'};
   }
   
   .ant-table-tbody > tr:nth-child(2n) {
-    background-color: #fafafa;
+    background-color: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#fafafa'};
   }
 `;
 
@@ -312,7 +322,7 @@ const CodeBlockContainer = styled.div`
   margin: 16px 0;
   border-radius: 6px;
   overflow: hidden;
-  background-color: rgb(40, 44, 52);
+  background-color: ${props => props.theme.isDarkMode ? 'rgb(40, 44, 52)' : '#f6f8fa'};
 `;
 
 const CodeHeader = styled.div`
@@ -320,22 +330,24 @@ const CodeHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background-color: rgb(30, 34, 42);
-  color: #eee;
+  background-color: ${props => props.theme.isDarkMode ? 'rgb(30, 34, 42)' : '#e9ecef'};
+  color: ${props => props.theme.isDarkMode ? '#eee' : '#333'};
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 12px;
 `;
 
 const CodeLanguage = styled.span`
   text-transform: uppercase;
-  color: #aaa;
+  color: ${props => props.theme.isDarkMode ? '#aaa' : '#666'};
 `;
 
 const CopyButton = styled(Button)`
-  color: #eee;
+  color: ${props => props.theme.isDarkMode ? '#eee' : '#333'};
   &:hover {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.1);
+    color: ${props => props.theme.isDarkMode ? '#fff' : '#000'};
+    background-color: ${props => props.theme.isDarkMode 
+      ? 'rgba(255, 255, 255, 0.1)' 
+      : 'rgba(0, 0, 0, 0.05)'};
   }
 `;
 
@@ -349,7 +361,7 @@ const Pre = styled.pre`
 const Code = styled.div`
   padding: 12px 16px;
   overflow: auto;
-  color: #eee;
+  color: ${props => props.theme.isDarkMode ? '#eee' : '#333'};
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 14px;
   line-height: 1.5;
@@ -361,18 +373,22 @@ const FadedOverlay = styled.div`
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(transparent, rgba(40, 44, 52, 0.9));
+  background: ${props => props.theme.isDarkMode 
+    ? 'linear-gradient(transparent, rgba(40, 44, 52, 0.9))'
+    : 'linear-gradient(transparent, rgba(246, 248, 250, 0.9))'};
 `;
 
 const ExpandButton = styled(Button)`
   width: 100%;
   border-radius: 0;
-  background-color: rgb(30, 34, 42);
-  color: #eee;
+  background-color: ${props => props.theme.isDarkMode ? 'rgb(30, 34, 42)' : '#e9ecef'};
+  color: ${props => props.theme.isDarkMode ? '#eee' : '#333'};
   height: 32px;
   &:hover {
-    color: #fff;
-    background-color: rgb(35, 39, 47);
+    color: ${props => props.theme.isDarkMode ? '#fff' : '#000'};
+    background-color: ${props => props.theme.isDarkMode 
+      ? 'rgb(35, 39, 47)' 
+      : '#d9dde1'};
   }
 `;
 
@@ -445,11 +461,12 @@ const MarkdownContainer = styled.div`
   }
   
   code {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: ${props => props.theme.isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'};
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 85%;
+    color: ${props => props.theme.isDarkMode ? '#e6e6e6' : 'inherit'};
   }
   
   /* 表格样式 */
@@ -465,22 +482,29 @@ const MarkdownContainer = styled.div`
     padding: 10px;
     text-align: left;
     font-weight: 600;
-    background-color: #fafafa;
-    border: 1px solid #e8e8e8;
+    background-color: ${props => props.theme.isDarkMode ? '#333' : '#fafafa'};
+    border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#e8e8e8'};
   }
   
   td {
     padding: 10px;
-    border: 1px solid #e8e8e8;
+    border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#e8e8e8'};
   }
   
   tr {
-    border-top: 1px solid #e8e8e8;
+    border-top: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#e8e8e8'};
   }
   
   tr:nth-child(2n) {
-    background-color: #fafafa;
+    background-color: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#fafafa'};
   }
+`;
+
+const MessageTimestamp = styled.div<{ isUser: boolean }>`
+  font-size: 12px;
+  color: ${props => props.theme.colors.secondaryText};
+  margin-top: 8px;
+  text-align: ${props => props.isUser ? 'right' : 'left'};
 `;
 
 export default MessageItem; 

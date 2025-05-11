@@ -11,6 +11,18 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+/* 控制暗色模式下的全局背景色 */
+body[theme-mode="dark"] {
+  background-color: #1f1f1f;
+}
+
+body[theme-mode="light"] {
   background-color: #f9fafb;
 }
 
@@ -25,15 +37,99 @@ code {
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+/* 亮色模式滚动条 */
+body[theme-mode="light"] ::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
-::-webkit-scrollbar-thumb {
+body[theme-mode="light"] ::-webkit-scrollbar-thumb {
   background: #ccc;
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+body[theme-mode="light"] ::-webkit-scrollbar-thumb:hover {
   background: #aaa;
+}
+
+/* 暗色模式滚动条 */
+body[theme-mode="dark"] ::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+body[theme-mode="dark"] ::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+body[theme-mode="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* 修复暗色模式下ant-design组件的问题 */
+body[theme-mode="dark"] .ant-input-focused,
+body[theme-mode="dark"] .ant-input:focus {
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+  border-color: #177ddc !important;
+  background-color: #2c2c2c !important;
+  color: #f0f0f0 !important;
+}
+
+body[theme-mode="dark"] .ant-btn:focus {
+  color: #177ddc !important;
+  border-color: #177ddc !important;
+  background: transparent !important;
+}
+
+body[theme-mode="dark"] .ant-btn:hover {
+  color: #177ddc !important;
+  border-color: #177ddc !important;
+}
+
+/* 修复暗色模式下表单控件样式 */
+body[theme-mode="dark"] .ant-input,
+body[theme-mode="dark"] .ant-input-affix-wrapper,
+body[theme-mode="dark"] .ant-select-selector {
+  background-color: #2c2c2c !important;
+  color: #f0f0f0 !important;
+  border-color: #434343 !important;
+}
+
+body[theme-mode="dark"] .ant-select-dropdown {
+  background-color: #2c2c2c !important;
+}
+
+body[theme-mode="dark"] .ant-select-item-option-content {
+  color: #f0f0f0 !important;
+}
+
+body[theme-mode="dark"] .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: #111b26 !important;
+}
+
+/* 添加View Transitions相关样式 */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 禁用默认的view-transition动画 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 确保新旧视图正确叠加 */
+::view-transition-group(root) {
+  animation-duration: 0.5s;
+}
+
+/* 防止闪烁 */
+.no-transition {
+  transition: none !important;
 }

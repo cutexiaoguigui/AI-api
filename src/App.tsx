@@ -1,8 +1,8 @@
 // src/App.tsx
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'; // <--- 引入 useLocation
-import { ConfigProvider, theme, App as AntdApp, Spin } from 'antd'; // <--- 引入 Spin (可选的加载指示器)
-import { ThemeProvider } from 'styled-components';
+import { ConfigProvider, theme as antdTheme, App as AntdApp, Spin } from 'antd'; // <--- 引入 Spin (可选的加载指示器)
+import { ThemeProvider, DefaultTheme } from 'styled-components';
 import { ChatProvider, useChat } from './contexts/ChatContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -12,6 +12,60 @@ import CopilotChat from './pages/CopilotChat';
 import CopilotChatPhone from './pages/CopilotChatPhone';
 import SettingsPage from './pages/SettingsPage';
 import PasswordPage from './pages/PasswordPage';
+
+// 创建亮色主题
+const createLightTheme = (primaryColor: string): DefaultTheme => ({
+  primaryColor,
+  isDarkMode: false,
+  colors: {
+    background: '#ffffff',
+    text: '#333333',
+    secondaryText: '#666666',
+    border: '#f0f0f0',
+    cardBackground: '#ffffff',
+    messageBackground: {
+      user: '#e6f7ff',
+      assistant: '#ffffff',
+      error: '#fff2f0',
+    },
+    messageBorder: {
+      user: '#91d5ff',
+      assistant: '#e8e8e8',
+      error: '#ffccc7',
+    },
+    codeBackground: '#f7f7f7',
+    inputBackground: 'rgba(255, 255, 255, 0.8)',
+    sidebarBackground: '#fff',
+    navbarBackground: 'rgba(255, 255, 255, 0.8)',
+  }
+});
+
+// 创建暗色主题
+const createDarkTheme = (primaryColor: string): DefaultTheme => ({
+  primaryColor,
+  isDarkMode: true,
+  colors: {
+    background: '#1f1f1f',
+    text: '#f0f0f0',
+    secondaryText: '#bbbbbb',
+    border: '#333333',
+    cardBackground: '#2c2c2c',
+    messageBackground: {
+      user: '#15395b',
+      assistant: '#2c2c2c',
+      error: '#5c1919',
+    },
+    messageBorder: {
+      user: '#15395b',
+      assistant: '#333333',
+      error: '#5c1919',
+    },
+    codeBackground: '#2a2a2a',
+    inputBackground: 'rgba(30, 30, 30, 0.8)',
+    sidebarBackground: '#2c2c2c',
+    navbarBackground: 'rgba(30, 30, 30, 0.8)',
+  }
+});
 
 // 路由保护组件
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,14 +119,29 @@ const ThemedApp: React.FC = () => {
       };
     }, []);
 
+    // 添加useEffect监听暗色模式变化并设置body属性
+    useEffect(() => {
+      // 根据暗色模式设置body的theme-mode属性
+      document.body.setAttribute('theme-mode', settings.theme.darkMode ? 'dark' : 'light');
+    }, [settings.theme.darkMode]);
+
+    // 根据设置选择当前主题
+    const currentTheme = settings.theme.darkMode 
+      ? createDarkTheme(settings.theme.primaryColor) 
+      : createLightTheme(settings.theme.primaryColor);
+
     return (
-      <ThemeProvider theme={{ primaryColor: settings.theme.primaryColor }}>
+      <ThemeProvider theme={currentTheme}>
         <ConfigProvider
           theme={{
             token: {
               colorPrimary: settings.theme.primaryColor,
+              // 添加暗色模式的配置
+              colorBgBase: settings.theme.darkMode ? '#1f1f1f' : '#ffffff',
+              colorTextBase: settings.theme.darkMode ? '#f0f0f0' : '#333333',
+              colorBorder: settings.theme.darkMode ? '#333333' : '#f0f0f0',
             },
-            algorithm: theme.defaultAlgorithm,
+            algorithm: settings.theme.darkMode ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
           }}
         >
           <AntdApp>

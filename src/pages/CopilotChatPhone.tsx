@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button, Input, Tooltip, message, Drawer, List, Avatar, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
+import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons';
 import { useChat } from '../contexts/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -67,7 +67,7 @@ const Container = styled.div`
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background-color: #ffffff;
+  background-color: ${props => props.theme.colors.background};
   overflow: hidden;
 `;
 
@@ -76,8 +76,8 @@ const NavBar = styled.div`
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid ${props => props.theme.colors.border};
+  background-color: ${props => props.theme.colors.navbarBackground};
   backdrop-filter: blur(5px);
   position: sticky;
   top: 0;
@@ -90,6 +90,7 @@ const MenuButton = styled(Button)`
   border: none;
   background: none;
   padding: 8px;
+  color: ${props => props.theme.colors.text};
 `;
 
 const SettingsIconButton = styled(Button)`
@@ -97,6 +98,7 @@ const SettingsIconButton = styled(Button)`
   border: none;
   background: none;
   padding: 8px;
+  color: ${props => props.theme.colors.text};
 `;
 
 const slideUp = keyframes`
@@ -134,8 +136,12 @@ const MainContent = styled.div<{ hasMessages: boolean }>`
   flex-direction: column;
   height: calc(100% - 60px - 60px);
   overflow-y: auto;
-  background-color: #ffffff;
-  background-image: ${props => !props.hasMessages ? 'radial-gradient(circle at center,rgba(73, 217, 253, 0.27), transparent 60vw)' : 'none'};
+  background-color: ${props => props.theme.colors.background};
+  background-image: ${props => !props.hasMessages ? 
+    props.theme.isDarkMode
+      ? 'radial-gradient(circle at center, rgba(30, 60, 90, 0.2) 0%, rgba(15, 15, 15, 0) 60vw)'
+      : 'radial-gradient(circle at center,rgba(73, 217, 253, 0.27), transparent 60vw)'
+    : 'none'};
   background-position: center 20%;
   background-repeat: no-repeat;
 `;
@@ -163,14 +169,17 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   width: auto;
   display: inline-block;
   word-wrap: break-word;
-  background-color: ${props => props.isError ? '#fff2f0' : props.isUser ? '#e6f7ff' : '#f0f0f0'};
+  background-color: ${props => {
+    if (props.isError) return props.theme.colors.messageBackground.error;
+    return props.isUser ? props.theme.colors.messageBackground.user : props.theme.colors.messageBackground.assistant;
+  }};
   align-self: ${props => props.isUser ? 'flex-end' : 'flex-start'};
   margin-left: ${props => props.isUser ? 'auto' : '10%'};
   margin-right: ${props => props.isUser ? '10%' : 'auto'};
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 2px ${props => props.theme.isDarkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)'};
   border: 1px solid ${props => {
-    if (props.isError) return '#ffccc7';
-    return props.isUser ? '#91d5ff' : '#e8e8e8';
+    if (props.isError) return props.theme.colors.messageBorder.error;
+    return props.isUser ? props.theme.colors.messageBorder.user : props.theme.colors.messageBorder.assistant;
   }};
   position: relative;
 
@@ -178,22 +187,29 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   p {
     margin-bottom: 8px;
     line-height: 1.6;
+    color: ${props => props.theme.colors.text};
   }
   
   pre {
     margin: 10px 0;
     padding: 10px;
     border-radius: 6px;
-    background-color: #f7f7f7;
+    background-color: ${props => props.theme.colors.codeBackground};
     overflow-x: auto;
   }
 
   code {
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.9em;
-    background-color: ${props => props.isError ? 'rgba(255, 77, 79, 0.1)' : props.isUser ? 'rgba(24, 144, 255, 0.1)' : 'rgba(0,0,0,0.05)'};
+    background-color: ${props => {
+      if (props.isError) return props.theme.isDarkMode ? 'rgba(255, 77, 79, 0.2)' : 'rgba(255, 77, 79, 0.1)';
+      return props.isUser 
+        ? props.theme.isDarkMode ? 'rgba(24, 144, 255, 0.2)' : 'rgba(24, 144, 255, 0.1)' 
+        : props.theme.isDarkMode ? '#333' : 'rgba(0,0,0,0.05)';
+    }};
     padding: 2px 4px;
     border-radius: 3px;
+    color: ${props => props.theme.colors.text};
   }
 
   pre code {
@@ -209,6 +225,7 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
 
   li {
     margin-bottom: 4px;
+    color: ${props => props.theme.colors.text};
   }
 `;
 
@@ -219,30 +236,31 @@ const MarkdownTable = styled.table`
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px #eee;
+  box-shadow: 0 0 0 1px ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 const TableHeader = styled.th`
-  background-color: rgba(24, 144, 255, 0.1);
-  color: #333;
+  background-color: ${props => props.theme.isDarkMode ? 'rgba(24, 144, 255, 0.2)' : 'rgba(24, 144, 255, 0.1)'};
+  color: ${props => props.theme.colors.text};
   font-weight: bold;
   padding: 8px 12px;
     text-align: left;
-  border: 1px solid #eee;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 const TableCell = styled.td`
   padding: 8px 12px;
-  border: 1px solid #eee;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
   text-align: left;
+  color: ${props => props.theme.colors.text};
 `;
 
 const InputContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 10px 16px;
-  border-top: 1px solid #f0f0f0;
-  background-color: #fff;
+  border-top: 1px solid ${props => props.theme.colors.border};
+  background-color: ${props => props.theme.colors.inputBackground};
   position: sticky;
   bottom: 0;
   width: 100%;
@@ -255,6 +273,16 @@ const StyledInput = styled(Input.TextArea)`
   padding: 10px 16px;
   resize: none;
   font-size: 16px;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#d9d9d9'};
+  background-color: ${props => props.theme.isDarkMode ? '#2c2c2c' : '#ffffff'};
+  color: ${props => props.theme.colors.text};
+
+  &:hover, &:focus {
+    border-color: ${props => props.theme.primaryColor};
+    box-shadow: 0 0 0 2px ${props => props.theme.isDarkMode 
+      ? `rgba(${parseInt(props.theme.primaryColor.slice(1, 3), 16)}, ${parseInt(props.theme.primaryColor.slice(3, 5), 16)}, ${parseInt(props.theme.primaryColor.slice(5, 7), 16)}, 0.2)`
+      : `rgba(24, 144, 255, 0.1)`};
+  }
 `;
 
 const InputButtons = styled.div`
@@ -270,6 +298,7 @@ const InputButton = styled(Button)`
   margin-left: 5px;
   height: 40px;
   width: 40px;
+  color: ${props => props.theme.colors.secondaryText};
 `;
 
 const SendButton = styled(Button)`
@@ -323,13 +352,15 @@ const LogoImg = styled.img`
 
 const WelcomeText = styled.h2`
   font-size: 1.2em;
-  color: #555;
+  color: ${props => props.theme.colors.text};
   margin-bottom: 20px;
 `;
 
 // 抽屉样式
 const DrawerContent = styled.div`
   padding: 16px 0;
+  background-color: ${props => props.theme.colors.background};
+  color: ${props => props.theme.colors.text};
 `;
 
 const DrawerHeader = styled.div`
@@ -337,12 +368,13 @@ const DrawerHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 0 16px 16px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.theme.colors.border};
 `;
 
 const DrawerTitle = styled.div`
   font-size: 16px;
   font-weight: 600;
+  color: ${props => props.theme.colors.text};
 `;
 
 const NewChatButtonDrawer = styled(Button)`
@@ -461,10 +493,26 @@ const MessageContainer = styled.div<{ isUser: boolean }>`
 
 const Timestamp = styled.div<{ isUser: boolean }>`
   font-size: 12px;
-  color: #999;
+  color: ${props => props.theme.colors.secondaryText};
   margin-top: 8px;
   text-align: ${props => props.isUser ? 'right' : 'left'};
   padding-bottom: 2px;
+`;
+
+const ThemeToggleButton = styled(Button)`
+  border: none;
+  background: none;
+  font-size: 20px;
+  color: ${props => props.theme.colors.text};
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 0;
+  
+  &:hover {
+    opacity: 1;
+    color: ${props => props.theme.isDarkMode ? '#f8e71c' : '#1890ff'};
+    background: none;
+  }
 `;
 
 interface ChatMessage {
@@ -484,8 +532,50 @@ interface ChatHistory {
 
 const STORAGE_KEY = 'copilot_chat_histories';
 
+// 创建一个辅助函数来处理主题切换动画
+const animateThemeChange = (e: React.MouseEvent, callback: () => void) => {
+  // 获取点击位置
+  const x = e.clientX;
+  const y = e.clientY;
+  
+  // 计算从点击点到窗口最远边缘的距离
+  const endRadius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  );
+  
+  // 检查浏览器是否支持View Transitions API
+  if ('startViewTransition' in document) {
+    const transition = (document as any).startViewTransition(async () => {
+      callback();
+    });
+    
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`
+          ]
+        },
+        {
+          duration: 700,
+          easing: 'ease-out',
+          // 注意：在切换到深色模式时使用new，切换到浅色模式时使用old
+          pseudoElement: document.body.getAttribute('theme-mode') === 'dark' 
+            ? '::view-transition-new(root)' 
+            : '::view-transition-old(root)'
+        }
+      );
+    });
+  } else {
+    // 回退方案：对不支持View Transitions的浏览器直接执行回调
+    callback();
+  }
+};
+
 const CopilotChatPhone: React.FC = () => {
-  const { settings } = useChat();
+  const { settings, setSettings } = useChat();
   const [inputText, setInputText] = useState('');
   const [debouncedInputText, setDebouncedInputText] = useState('');
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
@@ -1056,6 +1146,19 @@ const CopilotChatPhone: React.FC = () => {
     });
   };
 
+  // 使用辅助函数实现主题切换
+  const toggleThemeMode = (e: React.MouseEvent) => {
+    animateThemeChange(e, () => {
+      setSettings({
+        ...settings,
+        theme: {
+          ...settings.theme,
+          darkMode: !settings.theme.darkMode
+        }
+      });
+    });
+  };
+
   return (
     <Container>
       {/* 顶部导航栏 */}
@@ -1064,9 +1167,17 @@ const CopilotChatPhone: React.FC = () => {
           <MenuOutlined />
         </MenuButton>
         <LogoImg src={logoImage} alt="AI Logo" style={{ height: '28px' }} />
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <ThemeToggleButton 
+            onClick={toggleThemeMode}
+            title={settings.theme.darkMode ? "切换到亮色模式" : "切换到暗色模式"}
+          >
+            {settings.theme.darkMode ? <BulbOutlined /> : <BulbFilled />}
+          </ThemeToggleButton>
         <SettingsIconButton onClick={goToSettings}>
           <SettingOutlined />
         </SettingsIconButton>
+        </div>
       </NavBar>
 
       {/* 主内容区 */}
@@ -1112,29 +1223,29 @@ const CopilotChatPhone: React.FC = () => {
               ))}
               {isStreaming && (
                 <MessageContainer isUser={false}>
-                  <MessageItem 
-                    key="streaming" 
-                    isUser={false}
-                    isError={streamingResponse.startsWith('❌')}
-                  >
+                <MessageItem 
+                  key="streaming" 
+                  isUser={false}
+                  isError={streamingResponse.startsWith('❌')}
+                >
                     {settings.enableMarkdown ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code: CodeBlock,
-                          table: (props: any) => (
-                            <MarkdownTable {...props} />
-                          ),
-                          th: (props: any) => (
-                            <TableHeader {...props} />
-                          ),
-                          td: (props: any) => (
-                            <TableCell {...props} />
-                          )
-                        }}
-                      >
-                        {streamingResponse}
-                      </ReactMarkdown>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      table: (props: any) => (
+                        <MarkdownTable {...props} />
+                      ),
+                      th: (props: any) => (
+                        <TableHeader {...props} />
+                      ),
+                      td: (props: any) => (
+                        <TableCell {...props} />
+                      )
+                    }}
+                  >
+                    {streamingResponse}
+                  </ReactMarkdown>
                     ) : (
                       <div style={{ whiteSpace: 'pre-wrap' }}>
                         {streamingResponse}
@@ -1145,7 +1256,7 @@ const CopilotChatPhone: React.FC = () => {
                         {new Date().toLocaleTimeString()}
                       </Timestamp>
                     )}
-                  </MessageItem>
+                </MessageItem>
                 </MessageContainer>
               )}
               <div ref={messageEndRef} />

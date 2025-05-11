@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button, Input, Tooltip, message, Drawer, List, Avatar, Spin } from 'antd';
 import { useNavigate, Link } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
+import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons';
 import { useChat } from '../contexts/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,15 +21,15 @@ const Container = styled.div`
   display: flex;
   height: 100vh;
   width: 100%;
-  background-color: #ffffff;
+  background-color: ${props => props.theme.colors.background};
 `;
 
 const Sidebar = styled.div`
   width: 280px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #f0f0f0;
-  background-color: #fff;
+  border-right: 1px solid ${props => props.theme.colors.border};
+  background-color: ${props => props.theme.colors.sidebarBackground};
   height: 100vh;
 `;
 
@@ -38,7 +38,7 @@ const SidebarTop = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.theme.colors.border};
 `;
 
 const LogoContainer = styled.div`
@@ -46,12 +46,15 @@ const LogoContainer = styled.div`
   align-items: center;
   font-size: 18px;
   font-weight: 600;
+  color: ${props => props.theme.colors.text};
 `;
 
-const LogoImg = styled.img`
+const LogoImg = styled.img.attrs({
+  draggable: false, // 设置 draggable 属性为 false
+})`
   height: 28px;
   margin-right: 8px;
-  
+  user-select: none;
   &.large-logo {
     height: 80px;
     margin-bottom: 24px;
@@ -65,10 +68,11 @@ const NewChatButton = styled(Button)`
   border: none;
   background: none;
   cursor: pointer;
-  color: #1890ff;
+  color: ${props => props.theme.primaryColor};
   
   &:hover {
-    color: #40a9ff;
+    color: ${props => props.theme.primaryColor};
+    opacity: 0.8;
     background: none;
   }
   
@@ -81,7 +85,9 @@ const ChatHistoryList = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 12px;
-  background: linear-gradient(to bottom,rgb(254, 254, 254) 30%,rgb(189, 211, 244) 100%);
+  background: ${props => props.theme.isDarkMode 
+    ? 'linear-gradient(to bottom, #252525 30%, #151515 100%)'
+    : 'linear-gradient(to bottom,rgb(254, 254, 254) 30%,rgb(189, 211, 244) 100%)'};
 `;
 
 const ChatHistoryItem = styled.div<{ active: boolean }>`
@@ -92,13 +98,33 @@ const ChatHistoryItem = styled.div<{ active: boolean }>`
   border-radius: 16px;
   margin-bottom: 10px;
   cursor: pointer;
-  background-color: ${props => props.active ? '#e6f7ff' : '#f9f9f9'};
-  box-shadow: ${props => props.active ? '0 2px 6px rgba(24, 144, 255, 0.15)' : 'none'};
+  background-color: ${props => props.active 
+    ? props.theme.isDarkMode 
+      ? '#15395b' 
+      : '#e6f7ff'
+    : props.theme.isDarkMode
+      ? '#2c2c2c'
+      : '#f9f9f9'};
+  box-shadow: ${props => props.active 
+    ? props.theme.isDarkMode
+      ? '0 2px 6px rgba(0, 0, 0, 0.3)'
+      : '0 2px 6px rgba(24, 144, 255, 0.15)'
+    : 'none'};
   transition: all 0.2s ease;
-  border: 1px solid ${props => props.active ? '#91d5ff' : 'transparent'};
+  border: 1px solid ${props => props.active 
+    ? props.theme.isDarkMode 
+      ? '#15395b' 
+      : '#91d5ff'
+    : 'transparent'};
   
   &:hover {
-    background-color: ${props => props.active ? '#e6f7ff' : '#f0f0f0'};
+    background-color: ${props => props.active 
+      ? props.theme.isDarkMode 
+        ? '#15395b' 
+        : '#e6f7ff'
+      : props.theme.isDarkMode
+        ? '#393939'
+        : '#f0f0f0'};
     transform: translateY(-1px);
   }
 `;
@@ -115,11 +141,12 @@ const ChatHistoryTitle = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: ${props => props.theme.colors.text};
 `;
 
 const ChatHistoryPreview = styled.div`
   font-size: 12px;
-  color: #999;
+  color: ${props => props.theme.colors.secondaryText};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -127,7 +154,7 @@ const ChatHistoryPreview = styled.div`
 
 const ChatHistoryDate = styled.div`
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: ${props => props.theme.isDarkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.5)'};
   margin-left: auto;
   margin-right: 5px;
 `;
@@ -142,7 +169,7 @@ const DeleteButton = styled(Button)`
   height: 24px;
   width: 24px;
   font-size: 12px;
-  color: #999;
+  color: ${props => props.theme.colors.secondaryText};
   
   ${ChatHistoryItem}:hover & {
     visibility: visible;
@@ -151,7 +178,7 @@ const DeleteButton = styled(Button)`
   
   &:hover {
     color: #ff4d4f;
-    background: rgba(255, 77, 79, 0.1);
+    background: ${props => props.theme.isDarkMode ? 'rgba(255, 77, 79, 0.2)' : 'rgba(255, 77, 79, 0.1)'};
   }
 `;
 
@@ -160,10 +187,12 @@ const MainContent = styled.div<{ showGradient: boolean }>`
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #ffffff;
+  background-color: ${props => props.theme.colors.background};
   background-image: ${props => props.showGradient ? 
-    'radial-gradient(circle at center, rgba(112, 186, 255, 0.25) 0%, rgb(255, 255, 255) 20vw)' : 
-    'none'};
+    props.theme.isDarkMode
+      ? 'radial-gradient(circle at center, rgba(30, 60, 90, 0.2) 0%, rgba(15, 15, 15, 0) 20vw)'
+      : 'radial-gradient(circle at center, rgba(112, 186, 255, 0.25) 0%, rgb(255, 255, 255) 20vw)'
+    : 'none'};
   position: relative;
 `;
 
@@ -172,8 +201,8 @@ const NavBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid ${props => props.theme.colors.border};
+  background-color: ${props => props.theme.colors.navbarBackground};
   backdrop-filter: blur(5px);
   position: sticky;
   top: 0;
@@ -181,26 +210,41 @@ const NavBar = styled.div`
 `;
 
 const NavBarContent = styled.div`
-  width: 100%;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  width: 100%;
 `;
 
 const SettingsIconButton = styled(Button)`
-  font-size: 18px;
   border: none;
   background: none;
-  padding: 8px;
-  height: 40px;
-  width: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
+  font-size: 20px;
+  color: ${props => props.theme.colors.text};
+  opacity: 0.75;
+  cursor: pointer;
+  margin-left: 16px;
   
   &:hover {
-    color: #1890ff;
-    background-color: rgba(24, 144, 255, 0.1);
+    opacity: 1;
+    color: ${props => props.theme.primaryColor};
+    background: none;
+  }
+`;
+
+const ThemeToggleButton = styled(Button)`
+  border: none;
+  background: none;
+  font-size: 20px;
+  color: ${props => props.theme.colors.text};
+  opacity: 0.75;
+  cursor: pointer;
+  margin-right: 8px;
+  
+  &:hover {
+    opacity: 1;
+    color: ${props => props.theme.isDarkMode ? '#f8e71c' : '#1890ff'};
+    background: none;
   }
 `;
 
@@ -211,6 +255,7 @@ const ChatArea = styled.div`
   display: flex;
   flex-direction: column;
   padding-top: 24px;
+  background-color: ${props => props.theme.colors.background};
 `;
 
 const EmptyState = styled.div`
@@ -226,7 +271,7 @@ const EmptyState = styled.div`
 
 const WelcomeText = styled.p`
   font-size: 22px;
-  color: #333;
+  color: ${props => props.theme.colors.text};
   margin-bottom: 32px;
   font-weight: 500;
 `;
@@ -281,9 +326,9 @@ const InitialInputButtons = styled.div`
 
 const InputContainer = styled.div`
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.8);
+  background: ${props => props.theme.colors.inputBackground};
   backdrop-filter: blur(5px);
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid ${props => props.theme.colors.border};
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -319,13 +364,13 @@ const InputButton = styled.button`
   background: none;
   border: none;
   font-size: 18px;
-  color: #999;
+  color: ${props => props.theme.colors.secondaryText};
   margin-right: 12px;
   cursor: pointer;
   padding: 4px;
 
   &:hover {
-    color: #1890ff;
+    color: ${props => props.theme.primaryColor};
   }
 `;
 
@@ -350,12 +395,12 @@ const LanguageLabel = styled.span`
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
+  background: ${props => props.theme.isDarkMode ? 'rgba(45, 45, 45, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#ddd'};
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 12px;
-  color: #666;
+  color: ${props => props.theme.colors.secondaryText};
   z-index: 10;
   text-transform: uppercase;
 `;
@@ -368,19 +413,19 @@ const CopyButton = styled.button`
   align-items: center;
   justify-content: center;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #ddd;
+  background: ${props => props.theme.isDarkMode ? 'rgba(45, 45, 45, 0.8)' : 'rgba(255, 255, 255, 0.8)'};
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#ddd'};
   border-radius: 4px;
   font-size: 12px;
-  color: #666;
+  color: ${props => props.theme.colors.secondaryText};
   cursor: pointer;
   z-index: 10;
   transition: all 0.2s;
-
+  
   &:hover {
-    background: rgba(255, 255, 255, 0.95);
-    color: #1890ff;
-    border-color: #1890ff;
+    background: ${props => props.theme.isDarkMode ? 'rgba(60, 60, 60, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+    color: ${props => props.theme.primaryColor};
+    border-color: ${props => props.theme.primaryColor};
   }
 `;
 
@@ -390,16 +435,16 @@ const CollapseButton = styled.button`
   justify-content: center;
   width: 100%;
   padding: 8px;
-  background: #f0f0f0;
+  background: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#f0f0f0'};
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#e0e0e0'};
   cursor: pointer;
   font-size: 13px;
-  color: #666;
+  color: ${props => props.theme.colors.secondaryText};
   transition: background-color 0.2s;
-
+  
   &:hover {
-    background-color: #e0e0e0;
+    background-color: ${props => props.theme.isDarkMode ? '#3a3a3a' : '#e0e0e0'};
   }
 
   svg {
@@ -420,14 +465,17 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
   padding: 14px 18px;
   border-radius: 18px;
   margin-bottom: 16px;
-  background-color: ${props => props.isError ? '#fff2f0' : props.isUser ? '#e6f7ff' : '#ffffff'};
-  color: ${props => props.isError ? '#f5222d' : '#333'};
+  background-color: ${props => {
+    if (props.isError) return props.theme.colors.messageBackground.error;
+    return props.isUser ? props.theme.colors.messageBackground.user : props.theme.colors.messageBackground.assistant;
+  }};
+  color: ${props => props.isError ? '#f5222d' : props.theme.colors.text};
   align-self: ${props => props.isUser ? 'flex-end' : 'flex-start'};
   border: 1px solid ${props => {
-    if (props.isError) return '#ffccc7';
-    return props.isUser ? '#91d5ff' : '#e8e8e8';
+    if (props.isError) return props.theme.colors.messageBorder.error;
+    return props.isUser ? props.theme.colors.messageBorder.user : props.theme.colors.messageBorder.assistant;
   }};
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px ${props => props.theme.isDarkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)'};
   line-height: 1.5;
   position: relative;
 
@@ -436,14 +484,21 @@ const MessageItem = styled.div<{ isUser: boolean; isError?: boolean }>`
     overflow-x: auto;
     margin: 10px 0;
     border-radius: 8px;
+    background-color: ${props => props.theme.colors.codeBackground};
   }
 
   code {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
     padding: 2px 4px;
     border-radius: 4px;
-    background-color: ${props => props.isError ? 'rgba(255, 77, 79, 0.1)' : props.isUser ? 'rgba(24, 144, 255, 0.1)' : '#f5f5f5'};
+    background-color: ${props => {
+      if (props.isError) return props.theme.isDarkMode ? 'rgba(255, 77, 79, 0.2)' : 'rgba(255, 77, 79, 0.1)';
+      return props.isUser 
+        ? props.theme.isDarkMode ? 'rgba(24, 144, 255, 0.2)' : 'rgba(24, 144, 255, 0.1)' 
+        : props.theme.isDarkMode ? '#333' : '#f5f5f5';
+    }};
     font-size: 0.9em;
+    color: ${props => props.theme.colors.text};
   }
 
   p {
@@ -473,7 +528,7 @@ const MessageContainer = styled.div<{ isUser: boolean }>`
 
 const Timestamp = styled.div<{ isUser: boolean }>`
   font-size: 12px;
-  color: #999;
+  color: ${props => props.theme.colors.secondaryText};
   margin-top: 8px;
   text-align: ${props => props.isUser ? 'right' : 'left'};
   padding-bottom: 2px;
@@ -486,21 +541,21 @@ const MarkdownTable = styled.table`
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px #eee;
+  box-shadow: 0 0 0 1px ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 const TableHeader = styled.th`
-  background-color: rgba(24, 144, 255, 0.1);
-  color: #333;
+  background-color: ${props => props.theme.isDarkMode ? 'rgba(24, 144, 255, 0.2)' : 'rgba(24, 144, 255, 0.1)'};
+  color: ${props => props.theme.colors.text};
   font-weight: bold;
   padding: 8px 12px;
   text-align: left;
-  border: 1px solid #eee;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 const TableCell = styled.td`
   padding: 8px 12px;
-  border: 1px solid #eee;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
   text-align: left;
 `;
 
@@ -524,28 +579,32 @@ const ScrollButton = styled(Button)`
   justify-content: center;
   padding: 0;
   border: none;
-  background: rgba(255, 255, 255, 0.7);
+  background: ${props => props.theme.isDarkMode ? 'rgba(60, 60, 60, 0.7)' : 'rgba(255, 255, 255, 0.7)'};
   backdrop-filter: blur(5px);
-  color: #666;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: ${props => props.theme.colors.secondaryText};
+  box-shadow: 0 2px 8px ${props => props.theme.isDarkMode ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'};
 
   &:hover {
-    color: #1890ff;
-    background: rgba(255, 255, 255, 0.9);
+    color: ${props => props.theme.primaryColor};
+    background: ${props => props.theme.isDarkMode ? 'rgba(70, 70, 70, 0.9)' : 'rgba(255, 255, 255, 0.9)'};
   }
 `;
 
 const StyledInput = styled(Input.TextArea)`
   padding: 16px;
   border-radius: 24px;
-  border: 1px solid #d9d9d9;
+  border: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#d9d9d9'};
   font-size: 16px;
   resize: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px ${props => props.theme.isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.06)'};
+  background-color: ${props => props.theme.isDarkMode ? '#2c2c2c' : '#ffffff'};
+  color: ${props => props.theme.colors.text};
 
   &:hover, &:focus {
-    border-color: #1890ff;
-    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+    border-color: ${props => props.theme.primaryColor};
+    box-shadow: 0 0 0 2px ${props => props.theme.isDarkMode 
+      ? `rgba(${parseInt(props.theme.primaryColor.slice(1, 3), 16)}, ${parseInt(props.theme.primaryColor.slice(3, 5), 16)}, ${parseInt(props.theme.primaryColor.slice(5, 7), 16)}, 0.2)`
+      : `rgba(24, 144, 255, 0.1)`};
   }
 `;
 
@@ -554,8 +613,8 @@ const LoadingContainer = styled.div`
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background: #f9f9f9;
-  border-top: 1px solid #eee;
+  background: ${props => props.theme.isDarkMode ? '#2a2a2a' : '#f9f9f9'};
+  border-top: 1px solid ${props => props.theme.isDarkMode ? '#444' : '#eee'};
 `;
 
 const STORAGE_KEY = 'copilot_chat_histories';
@@ -632,8 +691,50 @@ const useDebounce = <T,>(value: T, delay: number): T => {
   return debouncedValue;
 };
 
+// 创建一个辅助函数来处理主题切换动画
+const animateThemeChange = (e: React.MouseEvent, callback: () => void) => {
+  // 获取点击位置
+  const x = e.clientX;
+  const y = e.clientY;
+  
+  // 计算从点击点到窗口最远边缘的距离
+  const endRadius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  );
+  
+  // 检查浏览器是否支持View Transitions API
+  if ('startViewTransition' in document) {
+    const transition = (document as any).startViewTransition(async () => {
+      callback();
+    });
+    
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`
+          ]
+        },
+        {
+          duration: 700,
+          easing: 'ease-out',
+          // 注意：在切换到深色模式时使用new，切换到浅色模式时使用old
+          pseudoElement: document.body.getAttribute('theme-mode') === 'dark' 
+            ? '::view-transition-new(root)' 
+            : '::view-transition-new(root)'
+        }
+      );
+    });
+  } else {
+    // 回退方案：对不支持View Transitions的浏览器直接执行回调
+    callback();
+  }
+};
+
 const CopilotChat: React.FC = () => {
-  const { settings } = useChat();
+  const { settings, setSettings } = useChat();
   const [inputText, setInputText] = useState('');
   const [debouncedInputText, setDebouncedInputText] = useState('');
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
@@ -1230,6 +1331,19 @@ const CopilotChat: React.FC = () => {
   };
   // ----------------------- 新增的函数结束 -----------------------
 
+  // 使用辅助函数实现主题切换
+  const toggleThemeMode = (e: React.MouseEvent) => {
+    animateThemeChange(e, () => {
+      setSettings({
+        ...settings,
+        theme: {
+          ...settings.theme,
+          darkMode: !settings.theme.darkMode
+        }
+      });
+    });
+  };
+
   return (
     <Container>
       {/* 左侧边栏 */}
@@ -1274,6 +1388,12 @@ const CopilotChat: React.FC = () => {
         {/* 顶部导航栏 */}
         <NavBar>
           <NavBarContent>
+            <ThemeToggleButton 
+              onClick={toggleThemeMode}
+              title={settings.theme.darkMode ? "切换到亮色模式" : "切换到暗色模式"}
+            >
+              {settings.theme.darkMode ? <BulbOutlined /> : <BulbFilled />}
+            </ThemeToggleButton>
             <SettingsIconButton onClick={goToSettings}>
               <SettingOutlined />
             </SettingsIconButton>
@@ -1315,30 +1435,30 @@ const CopilotChat: React.FC = () => {
             <MessagesList ref={messagesListRef}>
               {messages.map((message, index) => (
                 <MessageContainer isUser={message.user !== 'Copilot'}>
-                  <MessageItem 
-                    key={message.id} 
-                    id={`message-${index}`}
-                    isUser={message.user !== 'Copilot'} 
-                    isError={message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败')}
-                  >
+                <MessageItem 
+                  key={message.id}
+                  id={`message-${index}`}
+                  isUser={message.user !== 'Copilot'} 
+                  isError={message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败')}
+                >
                     {settings.enableMarkdown ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code: CodeBlock,
-                          table: (props: any) => (
-                            <MarkdownTable {...props} />
-                          ),
-                          th: (props: any) => (
-                            <TableHeader {...props} />
-                          ),
-                          td: (props: any) => (
-                            <TableCell {...props} />
-                          )
-                        }}
-                      >
-                        {message.text}
-                      </ReactMarkdown>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      table: (props: any) => (
+                        <MarkdownTable {...props} />
+                      ),
+                      th: (props: any) => (
+                        <TableHeader {...props} />
+                      ),
+                      td: (props: any) => (
+                        <TableCell {...props} />
+                      )
+                    }}
+                  >
+                    {message.text}
+                  </ReactMarkdown>
                     ) : (
                       <div style={{ whiteSpace: 'pre-wrap' }}>
                         {message.text}
@@ -1349,34 +1469,34 @@ const CopilotChat: React.FC = () => {
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </Timestamp>
                     )}
-                  </MessageItem>
+                </MessageItem>
                 </MessageContainer>
               ))}
               {isStreaming && (
                 <MessageContainer isUser={false}>
-                  <MessageItem 
-                    key="streaming" 
-                    isUser={false}
-                    isError={streamingResponse.startsWith('❌')}
-                  >
+                <MessageItem 
+                  key="streaming" 
+                  isUser={false}
+                  isError={streamingResponse.startsWith('❌')}
+                >
                     {settings.enableMarkdown ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code: CodeBlock,
-                          table: (props: any) => (
-                            <MarkdownTable {...props} />
-                          ),
-                          th: (props: any) => (
-                            <TableHeader {...props} />
-                          ),
-                          td: (props: any) => (
-                            <TableCell {...props} />
-                          )
-                        }}
-                      >
-                        {streamingResponse}
-                      </ReactMarkdown>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code: CodeBlock,
+                      table: (props: any) => (
+                        <MarkdownTable {...props} />
+                      ),
+                      th: (props: any) => (
+                        <TableHeader {...props} />
+                      ),
+                      td: (props: any) => (
+                        <TableCell {...props} />
+                      )
+                    }}
+                  >
+                    {streamingResponse}
+                  </ReactMarkdown>
                     ) : (
                       <div style={{ whiteSpace: 'pre-wrap' }}>
                         {streamingResponse}
@@ -1387,7 +1507,7 @@ const CopilotChat: React.FC = () => {
                         {new Date().toLocaleTimeString()}
                       </Timestamp>
                     )}
-                  </MessageItem>
+                </MessageItem>
                 </MessageContainer>
               )}
               <div ref={messageEndRef} />
