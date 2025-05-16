@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, ChatSession, AppSettings } from '../interfaces';
+import { arrayMove } from '@dnd-kit/sortable';
 
 interface ChatContextType {
   sessions: ChatSession[];
@@ -14,6 +15,7 @@ interface ChatContextType {
   messages: Message[];
   isStreaming: boolean;
   clearCache: () => void;
+  reorderSessions: (oldIndex: number, newIndex: number) => void;
 }
 
 const defaultSettings: AppSettings = {
@@ -299,6 +301,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // indexedDB.deleteDatabase('your-database-name');
     };
 
+  const reorderSessions = (oldIndex: number, newIndex: number) => {
+    if (oldIndex === newIndex) return;
+    
+    const newSessions = arrayMove(sessions, oldIndex, newIndex);
+    setSessions(newSessions);
+    
+    localStorage.setItem('chatSessions', JSON.stringify(newSessions));
+  };
+
   return (
     <ChatContext.Provider value={{
       sessions,
@@ -312,6 +323,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       messages,
       isStreaming,
       clearCache,
+      reorderSessions,
     }}>
       {children}
     </ChatContext.Provider>

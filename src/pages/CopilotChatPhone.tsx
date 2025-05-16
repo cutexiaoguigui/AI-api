@@ -6,6 +6,10 @@ import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutli
 import { useChat } from '../contexts/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { InlineMath, BlockMath } from 'react-katex';
 import logoImage from '../logo.png';
 import { Collapse } from 'react-collapse';
 import { CodeBlock } from '../components/CodeBlockComponents';
@@ -359,8 +363,9 @@ const WelcomeText = styled.h2`
 // 抽屉样式
 const DrawerContent = styled.div`
   padding: 16px 0;
-  background-color: ${props => props.theme.colors.background};
+  background-color: ${props => props.theme.isDarkMode ? '#1a1a1a' : props.theme.colors.background};
   color: ${props => props.theme.colors.text};
+  height: 100%;
 `;
 
 const DrawerHeader = styled.div`
@@ -368,7 +373,7 @@ const DrawerHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 0 16px 16px 16px;
-  border-bottom: 1px solid ${props => props.theme.colors.border};
+  border-bottom: 1px solid ${props => props.theme.isDarkMode ? '#333' : props.theme.colors.border};
 `;
 
 const DrawerTitle = styled.div`
@@ -391,17 +396,22 @@ const HistoryList = styled(List)`
     transition: background-color 0.2s ease, border-left-color 0.2s ease;
 
     &:hover {
-      background-color: #f7f7f7;
+      background-color: ${props => props.theme.isDarkMode ? '#2c2c2c' : '#f7f7f7'};
     }
 
     &.active {
-      background-color: #e6f7ff;
+      background-color: ${props => props.theme.isDarkMode ? '#15395b' : '#e6f7ff'};
       border-left-color: ${props => props.theme.primaryColor || '#1890ff'};
     }
   }
 
   .ant-list-item-meta-title {
     font-weight: 500;
+    color: ${props => props.theme.colors.text};
+  }
+  
+  .ant-list-item-meta-description {
+    color: ${props => props.theme.isDarkMode ? '#aaa' : '#999'};
   }
 `;
 
@@ -515,6 +525,47 @@ const ThemeToggleButton = styled(Button)`
   }
 `;
 
+// 添加引用块样式
+const BlockQuote = styled.blockquote`
+  margin: 10px 0;
+  padding: 10px 15px;
+  border-left: 4px solid ${props => props.theme.isDarkMode ? '#4a7bab' : '#1890ff'};
+  background-color: ${props => props.theme.isDarkMode ? 'rgba(30, 60, 90, 0.2)' : 'rgba(24, 144, 255, 0.05)'};
+  color: ${props => props.theme.colors.text};
+  font-style: italic;
+  border-radius: 0 4px 4px 0;
+  
+  p {
+    margin: 0;
+  }
+`;
+
+// 自定义数学公式容器
+const MathContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  overflow-x: auto;
+  margin: 10px 0;
+  
+  // 内联数学公式样式
+  &.inline {
+    display: inline-flex;
+    width: auto;
+    margin: 0 2px;
+  }
+  
+  // KaTeX组件会生成一些内部元素
+  .katex-display {
+    margin: 0;
+  }
+  
+  .katex {
+    font-size: 1.1em;
+    color: ${props => props.theme.isDarkMode ? '#e0e0e0' : '#333'};
+  }
+`;
+
 interface ChatMessage {
   user: string;
   text: string;
@@ -564,13 +615,31 @@ const animateThemeChange = (e: React.MouseEvent, callback: () => void) => {
           // 注意：在切换到深色模式时使用new，切换到浅色模式时使用old
           pseudoElement: document.body.getAttribute('theme-mode') === 'dark' 
             ? '::view-transition-new(root)' 
-            : '::view-transition-old(root)'
+            : '::view-transition-new(root)'
         }
       );
     });
   } else {
     // 回退方案：对不支持View Transitions的浏览器直接执行回调
     callback();
+  }
+};
+
+// 自定义数学公式渲染组件
+const MathRenderer = ({ value, inline }: { value: string, inline: boolean }) => {
+  try {
+    return (
+      <MathContainer className={inline ? 'inline' : ''}>
+        {inline ? (
+          <InlineMath math={value} />
+        ) : (
+          <BlockMath math={value} />
+        )}
+      </MathContainer>
+    );
+  } catch (error) {
+    console.error('数学公式渲染错误:', error);
+    return <code>{value}</code>;
   }
 };
 
@@ -593,7 +662,7 @@ const CopilotChatPhone: React.FC = () => {
   const messageEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
-  // 使用React.memo优化消息列表组件
+  // 修改MemoizedMessageItem组件
   const MemoizedMessageItem = React.memo(({ 
     message, 
     index
@@ -611,7 +680,8 @@ const CopilotChatPhone: React.FC = () => {
         >
           {settings.enableMarkdown ? (
             <ReactMarkdown 
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
               components={{
                 code: CodeBlock,
                 table: (props: any) => (
@@ -622,8 +692,14 @@ const CopilotChatPhone: React.FC = () => {
                 ),
                 td: (props: any) => (
                   <TableCell {...props} />
+                ),
+                blockquote: (props: any) => (
+                  <BlockQuote {...props} />
+                ),
+                math: ({ value, inline }: { value: string, inline: boolean }) => (
+                  <MathRenderer value={value} inline={inline} />
                 )
-              }}
+              } as any}
             >
               {message.text}
             </ReactMarkdown>
@@ -1166,7 +1242,7 @@ const CopilotChatPhone: React.FC = () => {
         <MenuButton onClick={showDrawer}>
           <MenuOutlined />
         </MenuButton>
-        <LogoImg src={logoImage} alt="AI Logo" style={{ height: '28px' }} />
+        {/* <LogoImg src={logoImage} alt="AI Logo" style={{ height: '28px' }} /> */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <ThemeToggleButton 
             onClick={toggleThemeMode}
@@ -1230,7 +1306,8 @@ const CopilotChatPhone: React.FC = () => {
                 >
                     {settings.enableMarkdown ? (
                   <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={{
                       code: CodeBlock,
                       table: (props: any) => (
@@ -1241,8 +1318,14 @@ const CopilotChatPhone: React.FC = () => {
                       ),
                       td: (props: any) => (
                         <TableCell {...props} />
+                      ),
+                      blockquote: (props: any) => (
+                        <BlockQuote {...props} />
+                      ),
+                      math: ({ value, inline }: { value: string, inline: boolean }) => (
+                        <MathRenderer value={value} inline={inline} />
                       )
-                    }}
+                    } as any}
                   >
                     {streamingResponse}
                   </ReactMarkdown>
@@ -1301,6 +1384,15 @@ const CopilotChatPhone: React.FC = () => {
         onClose={closeDrawer}
         open={drawerVisible}
         width="80%"
+        styles={{
+          body: { 
+            padding: 0,
+            background: settings.theme.darkMode ? '#1a1a1a' : '#ffffff'
+          },
+          mask: {
+            background: settings.theme.darkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.45)'
+          }
+        }}
       >
         {/* 修改Drawer内容部分，使用类似CopilotChat.tsx的样式  */}
         <DrawerContent>
@@ -1315,7 +1407,14 @@ const CopilotChatPhone: React.FC = () => {
             </NewChatButtonDrawer>
           </DrawerHeader>
           
-          <div style={{ overflowY: 'auto', padding: '12px', background: '#ffffff', height: 'calc(100vh - 70px)' }}>
+          <div style={{ 
+            overflowY: 'auto', 
+            padding: '12px', 
+            background: settings.theme.darkMode 
+              ? 'linear-gradient(to bottom, #252525 30%, #151515 100%)' 
+              : '#ffffff', 
+            height: 'calc(100vh - 70px)' 
+          }}>
             {chatHistories.map((chat) => (
               <div
                 key={chat.id}
@@ -1327,22 +1426,51 @@ const CopilotChatPhone: React.FC = () => {
                   borderRadius: '16px',
                   marginBottom: '10px',
                   cursor: 'pointer',
-                  backgroundColor: chat.id === currentChatId ? '#e6f7ff' : '#f9f9f9',
-                  boxShadow: chat.id === currentChatId ? '0 2px 6px rgba(24, 144, 255, 0.15)' : 'none',
+                  backgroundColor: chat.id === currentChatId 
+                    ? settings.theme.darkMode ? '#15395b' : '#e6f7ff' 
+                    : settings.theme.darkMode ? '#2c2c2c' : '#f9f9f9',
+                  boxShadow: chat.id === currentChatId 
+                    ? settings.theme.darkMode 
+                      ? '0 2px 6px rgba(0, 0, 0, 0.3)' 
+                      : '0 2px 6px rgba(24, 144, 255, 0.15)' 
+                    : 'none',
                   transition: 'all 0.2s ease',
-                  border: chat.id === currentChatId ? '1px solid #91d5ff' : '1px solid transparent'
+                  border: chat.id === currentChatId 
+                    ? settings.theme.darkMode 
+                      ? '1px solid #15395b' 
+                      : '1px solid #91d5ff' 
+                    : '1px solid transparent'
                 }}
                 onClick={() => selectChat(chat.id)}
               >
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 500, fontSize: '14px', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ 
+                    fontWeight: 500, 
+                    fontSize: '14px', 
+                    marginBottom: '4px', 
+                    whiteSpace: 'nowrap', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis',
+                    color: settings.theme.darkMode ? '#e8e8e8' : '#333'
+                  }}>
                     {chat.title}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#999', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: settings.theme.darkMode ? '#aaa' : '#999', 
+                    whiteSpace: 'nowrap', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis' 
+                  }}>
                     {chat.lastMessage}
                   </div>
                 </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', marginLeft: 'auto', marginRight: '5px' }}>
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: settings.theme.darkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.45)', 
+                  marginLeft: 'auto', 
+                  marginRight: '5px' 
+                }}>
                   {chat.date}
                 </div>
                 <Button
@@ -1355,7 +1483,7 @@ const CopilotChatPhone: React.FC = () => {
                     height: '24px',
                     width: '24px',
                     fontSize: '12px',
-                    color: '#999'
+                    color: settings.theme.darkMode ? '#aaa' : '#999'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();

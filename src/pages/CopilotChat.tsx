@@ -2,12 +2,34 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button, Input, Tooltip, message, Drawer, List, Avatar, Spin } from 'antd';
 import { useNavigate, Link } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined, BulbOutlined, BulbFilled } from '@ant-design/icons';
+import { MenuOutlined, PlusOutlined, PictureOutlined, SendOutlined, SettingOutlined, DeleteOutlined, DownOutlined, UpOutlined, BulbOutlined, BulbFilled, HolderOutlined } from '@ant-design/icons';
 import { useChat } from '../contexts/ChatContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { InlineMath, BlockMath } from 'react-katex';
 import logoImage from '../logo.png';
 import { CodeBlock } from '../components/CodeBlockComponents';
+import { 
+  DndContext, 
+  useSensor, 
+  useSensors, 
+  PointerSensor, 
+  closestCenter,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  MeasuringStrategy
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 为window对象添加debounceTimer属性的声明
 declare global {
@@ -90,14 +112,14 @@ const ChatHistoryList = styled.div`
     : 'linear-gradient(to bottom,rgb(254, 254, 254) 30%,rgb(189, 211, 244) 100%)'};
 `;
 
-const ChatHistoryItem = styled.div<{ active: boolean }>`
+const ChatHistoryItem = styled.div<{ active: boolean; dragging?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
   border-radius: 16px;
   margin-bottom: 10px;
-  cursor: pointer;
+  cursor: ${props => props.dragging ? 'grabbing' : 'pointer'};
   background-color: ${props => props.active 
     ? props.theme.isDarkMode 
       ? '#15395b' 
@@ -626,13 +648,79 @@ interface ChatMessage {
   timestamp: number;
 }
 
-interface ChatHistory {
+interface ChatHistoryProps {
   id: string;
   title: string;
   lastMessage: string;
   date: string;
   messages: ChatMessage[];
 }
+
+interface SortableChatHistoryItemProps {
+  chat: ChatHistoryProps;
+  currentChatId: string;
+  onSelect: (id: string) => void;
+  onDelete: (e: React.MouseEvent, id: string) => void;
+}
+
+// 添加数学公式和引用块的样式
+const BlockQuote = styled.blockquote`
+  margin: 10px 0;
+  padding: 10px 15px;
+  border-left: 4px solid ${props => props.theme.isDarkMode ? '#4a7bab' : '#1890ff'};
+  background-color: ${props => props.theme.isDarkMode ? 'rgba(30, 60, 90, 0.2)' : 'rgba(24, 144, 255, 0.05)'};
+  color: ${props => props.theme.colors.text};
+  font-style: italic;
+  border-radius: 0 4px 4px 0;
+  
+  p {
+    margin: 0;
+  }
+`;
+
+// 自定义数学公式容器
+const MathContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  overflow-x: auto;
+  margin: 10px 0;
+  
+  // 内联数学公式样式
+  &.inline {
+    display: inline-flex;
+    width: auto;
+    margin: 0 2px;
+  }
+  
+  // KaTeX组件会生成一些内部元素
+  .katex-display {
+    margin: 0;
+  }
+  
+  .katex {
+    font-size: 1.1em;
+    color: ${props => props.theme.isDarkMode ? '#e0e0e0' : '#333'};
+  }
+`;
+
+// 自定义数学公式渲染组件
+const MathRenderer = ({ value, inline }: { value: string, inline: boolean }) => {
+  try {
+    return (
+      <MathContainer className={inline ? 'inline' : ''}>
+        {inline ? (
+          <InlineMath math={value} />
+        ) : (
+          <BlockMath math={value} />
+        )}
+      </MathContainer>
+    );
+  } catch (error) {
+    console.error('数学公式渲染错误:', error);
+    return <code>{value}</code>;
+  }
+};
 
 // 使用React.memo优化消息列表组件
 const MemoizedMessageItem = React.memo(({ 
@@ -642,6 +730,15 @@ const MemoizedMessageItem = React.memo(({
   message: ChatMessage; 
   index: number;
 }) => {
+  // 处理包含数学公式的文本
+  const processedText = message.text.replace(
+    /\$\$(.*?)\$\$/g, 
+    (_, formula) => `\n\n<math display="block">${formula}</math>\n\n`
+  ).replace(
+    /\$(.*?)\$/g, 
+    (_, formula) => `<math inline="true">${formula}</math>`
+  );
+
   return (
     <MessageItem 
       key={message.id}
@@ -650,21 +747,46 @@ const MemoizedMessageItem = React.memo(({
       isError={message.text.startsWith('❌ API调用错误') || message.text.startsWith('发送消息失败')}
     >
       <ReactMarkdown 
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code: CodeBlock,
-          table: (props: any) => (
-            <MarkdownTable {...props} />
-          ),
-          th: (props: any) => (
-            <TableHeader {...props} />
-          ),
-          td: (props: any) => (
-            <TableCell {...props} />
-          )
-        }}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={
+          {
+            code: CodeBlock,
+            table: (props: any) => (
+              <MarkdownTable {...props} />
+            ),
+            th: (props: any) => (
+              <TableHeader {...props} />
+            ),
+            td: (props: any) => (
+              <TableCell {...props} />
+            ),
+            blockquote: (props: any) => (
+              <BlockQuote {...props} />
+            ),
+            // 内联处理数学公式
+            // @ts-ignore
+            math: ({ children, inline }: any) => {
+              const value = String(children).trim();
+              try {
+                return inline ? (
+                  <MathContainer className="inline">
+                    <InlineMath math={value} />
+                  </MathContainer>
+                ) : (
+                  <MathContainer>
+                    <BlockMath math={value} />
+                  </MathContainer>
+                );
+              } catch (error) {
+                console.error('数学公式渲染错误:', error);
+                return <code>{value}</code>;
+              }
+            }
+          } as any
+        }
       >
-        {message.text}
+        {processedText}
       </ReactMarkdown>
     </MessageItem>
   );
@@ -733,11 +855,79 @@ const animateThemeChange = (e: React.MouseEvent, callback: () => void) => {
   }
 };
 
+// 添加可排序的聊天历史项组件
+const SortableChatHistoryItem: React.FC<SortableChatHistoryItemProps> = ({ 
+  chat, 
+  currentChatId, 
+  onSelect, 
+  onDelete 
+}) => {
+  const { 
+    attributes, 
+    listeners, 
+    setNodeRef, 
+    transform, 
+    transition, 
+    isDragging 
+  } = useSortable({ id: chat.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    position: 'relative' as 'relative',
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <ChatHistoryItem 
+      ref={setNodeRef}
+      style={style}
+      active={chat.id === currentChatId}
+      dragging={isDragging}
+      onClick={() => onSelect(chat.id)}
+    >
+      <DragHandleIcon {...attributes} {...listeners}>
+        <HolderOutlined />
+      </DragHandleIcon>
+      <ChatHistoryContent>
+        <ChatHistoryTitle>{chat.title}</ChatHistoryTitle>
+        <ChatHistoryPreview>{chat.lastMessage}</ChatHistoryPreview>
+      </ChatHistoryContent>
+      <ChatHistoryDate>{chat.date}</ChatHistoryDate>
+      <DeleteButton 
+        type="text"
+        icon={<DeleteOutlined />}
+        onClick={(e) => onDelete(e, chat.id)}
+        title="删除聊天"
+      />
+    </ChatHistoryItem>
+  );
+};
+
+// 添加拖动手柄样式
+const DragHandleIcon = styled.div`
+  margin-right: 10px;
+  cursor: grab;
+  color: ${props => props.theme.isDarkMode ? '#888' : '#aaa'};
+  opacity: 0.7;
+  font-size: 16px;
+  
+  &:hover {
+    color: ${props => props.theme.isDarkMode ? '#bbb' : '#888'};
+    opacity: 1;
+  }
+  
+  &:active {
+    cursor: grabbing;
+  }
+`;
+
 const CopilotChat: React.FC = () => {
   const { settings, setSettings } = useChat();
   const [inputText, setInputText] = useState('');
   const [debouncedInputText, setDebouncedInputText] = useState('');
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
+  const [chatHistories, setChatHistories] = useState<ChatHistoryProps[]>([]);
   const [currentChatId, setCurrentChatId] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -746,11 +936,44 @@ const CopilotChat: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isChatStarted, setIsChatStarted] = useState<boolean>(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const messageEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const messagesListRef = useRef<HTMLDivElement>(null);
+
+  // 配置拖拽传感器
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 0, // 立即响应拖拽
+      },
+    })
+  );
+
+  // 处理拖拽开始
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = chatHistories.findIndex(chat => chat.id === active.id);
+      const newIndex = chatHistories.findIndex(chat => chat.id === over.id);
+      
+      // 更新聊天历史顺序
+      const newChatHistories = arrayMove(chatHistories, oldIndex, newIndex);
+      setChatHistories(newChatHistories);
+      
+      // 更新本地存储
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newChatHistories));
+    }
+  };
 
   // 创建新聊天的函数声明提前，以便在useEffect中使用
   const createNewChat = () => {
@@ -1359,27 +1582,61 @@ const CopilotChat: React.FC = () => {
           </NewChatButton>
         </SidebarTop>
         
-        {/* 历史对话列表 */}
+        {/* 历史对话列表 - 使用DndContext */}
         <ChatHistoryList>
-          {chatHistories.map((chat) => (
-            <ChatHistoryItem 
-              key={chat.id} 
-              active={chat.id === currentChatId}
-              onClick={() => selectChat(chat.id)}
+          <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            measuring={{
+              droppable: {
+                strategy: MeasuringStrategy.Always
+              }
+            }}
+          >
+            <SortableContext 
+              items={chatHistories.map(chat => chat.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <ChatHistoryContent>
-                <ChatHistoryTitle>{chat.title}</ChatHistoryTitle>
-                <ChatHistoryPreview>{chat.lastMessage}</ChatHistoryPreview>
-              </ChatHistoryContent>
-              <ChatHistoryDate>{chat.date}</ChatHistoryDate>
-              <DeleteButton 
-                type="text"
-                icon={<DeleteOutlined />}
-                onClick={(e) => handleDeleteHistory(e, chat.id)}
-                title="删除聊天"
-              />
-            </ChatHistoryItem>
-          ))}
+              {chatHistories.map((chat) => (
+                <SortableChatHistoryItem
+                  key={chat.id}
+                  chat={chat}
+                  currentChatId={currentChatId}
+                  onSelect={selectChat}
+                  onDelete={handleDeleteHistory}
+                />
+              ))}
+            </SortableContext>
+            
+            {/* 拖动叠加层 */}
+            <DragOverlay adjustScale={false}>
+              {activeId ? (
+                <ChatHistoryItem 
+                  active={activeId === currentChatId}
+                  dragging={true}
+                  style={{
+                    opacity: 0.8,
+                    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)',
+                    width: '92%'
+                  }}
+                >
+                  <DragHandleIcon>
+                    <HolderOutlined />
+                  </DragHandleIcon>
+                  <ChatHistoryContent>
+                    <ChatHistoryTitle>
+                      {chatHistories.find(chat => chat.id === activeId)?.title}
+                    </ChatHistoryTitle>
+                    <ChatHistoryPreview>
+                      {chatHistories.find(chat => chat.id === activeId)?.lastMessage}
+                    </ChatHistoryPreview>
+                  </ChatHistoryContent>
+                </ChatHistoryItem>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </ChatHistoryList>
       </Sidebar>
 
@@ -1443,19 +1700,44 @@ const CopilotChat: React.FC = () => {
                 >
                     {settings.enableMarkdown ? (
                   <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code: CodeBlock,
-                      table: (props: any) => (
-                        <MarkdownTable {...props} />
-                      ),
-                      th: (props: any) => (
-                        <TableHeader {...props} />
-                      ),
-                      td: (props: any) => (
-                        <TableCell {...props} />
-                      )
-                    }}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={
+                      {
+                        code: CodeBlock,
+                        table: (props: any) => (
+                          <MarkdownTable {...props} />
+                        ),
+                        th: (props: any) => (
+                          <TableHeader {...props} />
+                        ),
+                        td: (props: any) => (
+                          <TableCell {...props} />
+                        ),
+                        blockquote: (props: any) => (
+                          <BlockQuote {...props} />
+                        ),
+                        // 内联处理数学公式
+                        // @ts-ignore
+                        math: ({ children, inline }: any) => {
+                          const value = String(children).trim();
+                          try {
+                            return inline ? (
+                              <MathContainer className="inline">
+                                <InlineMath math={value} />
+                              </MathContainer>
+                            ) : (
+                              <MathContainer>
+                                <BlockMath math={value} />
+                              </MathContainer>
+                            );
+                          } catch (error) {
+                            console.error('数学公式渲染错误:', error);
+                            return <code>{value}</code>;
+                          }
+                        }
+                      } as any
+                    }
                   >
                     {message.text}
                   </ReactMarkdown>
@@ -1481,19 +1763,44 @@ const CopilotChat: React.FC = () => {
                 >
                     {settings.enableMarkdown ? (
                   <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code: CodeBlock,
-                      table: (props: any) => (
-                        <MarkdownTable {...props} />
-                      ),
-                      th: (props: any) => (
-                        <TableHeader {...props} />
-                      ),
-                      td: (props: any) => (
-                        <TableCell {...props} />
-                      )
-                    }}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={
+                      {
+                        code: CodeBlock,
+                        table: (props: any) => (
+                          <MarkdownTable {...props} />
+                        ),
+                        th: (props: any) => (
+                          <TableHeader {...props} />
+                        ),
+                        td: (props: any) => (
+                          <TableCell {...props} />
+                        ),
+                        blockquote: (props: any) => (
+                          <BlockQuote {...props} />
+                        ),
+                        // 内联处理数学公式
+                        // @ts-ignore
+                        math: ({ children, inline }: any) => {
+                          const value = String(children).trim();
+                          try {
+                            return inline ? (
+                              <MathContainer className="inline">
+                                <InlineMath math={value} />
+                              </MathContainer>
+                            ) : (
+                              <MathContainer>
+                                <BlockMath math={value} />
+                              </MathContainer>
+                            );
+                          } catch (error) {
+                            console.error('数学公式渲染错误:', error);
+                            return <code>{value}</code>;
+                          }
+                        }
+                      } as any
+                    }
                   >
                     {streamingResponse}
                   </ReactMarkdown>
